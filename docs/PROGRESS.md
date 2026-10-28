@@ -99,3 +99,13 @@
 
 ## Batch 6 In Progress
 - Implementing reading lists
+
+## Batch 6 Completed (2026-10-28)
+- Reading list add/update/remove, list with pagination and status filter
+- Unique per user/book enforced
+- Build succeeded
+- Commit: feat: implement reading lists
+- Moving to Batch 7: Reports and administration
+
+## Batch 7 In Progress
+- Implementing reports, moderation, admin endpoints
