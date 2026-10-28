@@ -86,3 +86,16 @@
 
 ## Batch 5 In Progress
 - Implementing reviews, ratings, likes, ownership, aggregates
+
+## Batch 5 Completed (2026-10-28)
+- Reviews CRUD with ownership enforcement
+- Ratings 1-5, unique per user/book
+- Likes/unlikes, unique per user/review
+- Review listing for book and current user
+- Book average rating and review count updates
+- Build succeeded
+- Commit: feat: implement reviews and likes
+- Moving to Batch 6: Reading lists
+
+## Batch 6 In Progress
+- Implementing reading lists
