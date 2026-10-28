@@ -62,7 +62,11 @@ export class ApiClient {
             
             if (!response.ok) {
                 const error = data?.message || data?.title || data || 'An error occurred';
-                throw new Error(typeof error === 'string' ? error : JSON.stringify(error));
+                const errorMsg = typeof error === 'string' ? error : JSON.stringify(error);
+                // Don't throw for 401/403 to avoid loops, let caller handle
+                const err = new Error(errorMsg);
+                err.status = response.status;
+                throw err;
             }
             
             return data;

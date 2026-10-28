@@ -74,9 +74,13 @@
                         <p style="color: var(--text-light);">Use the sidebar to manage books, genres, users, and reports.</p>
                     </div>
                 `;
-            } catch (error) {
+        } catch (error) {
+            if (error.status === 401 || error.status === 403) {
+                content.innerHTML = `<div class="alert alert-error">Authorization failed: ${error.message}. Please ensure you have admin privileges.</div>`;
+            } else {
                 content.innerHTML = `<div class="alert alert-error">Error loading dashboard: ${error.message}</div>`;
             }
+        }
         }
     </script>
 </body>
