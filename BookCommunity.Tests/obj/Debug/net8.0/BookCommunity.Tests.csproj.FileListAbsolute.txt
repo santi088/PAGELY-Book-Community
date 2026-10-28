@@ -464,3 +464,4 @@
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Tests/obj/Debug/net8.0/BookCommunity.Tests.pdb
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Tests/obj/Debug/net8.0/BookCommunity.Tests.genruntimeconfig.cache
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Tests/obj/Debug/net8.0/ref/BookCommunity.Tests.dll
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Tests/obj/Debug/net8.0/BookCommunity.Tests.sourcelink.json

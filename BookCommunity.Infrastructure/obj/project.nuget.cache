@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "M48oWQpk69k=",
+  "dgSpecHash": "Rzv5JR3KqZM=",
   "success": true,
   "projectFilePath": "/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/BookCommunity.Infrastructure.csproj",
   "expectedPackageFiles": [
@@ -23,9 +23,7 @@
     "/home/saint/.nuget/packages/microsoft.extensions.options/8.0.2/microsoft.extensions.options.8.0.2.nupkg.sha512",
     "/home/saint/.nuget/packages/microsoft.extensions.primitives/8.0.0/microsoft.extensions.primitives.8.0.0.nupkg.sha512",
     "/home/saint/.nuget/packages/npgsql/8.0.6/npgsql.8.0.6.nupkg.sha512",
-    "/home/saint/.nuget/packages/npgsql.entityframeworkcore.postgresql/8.0.11/npgsql.entityframeworkcore.postgresql.8.0.11.nupkg.sha512",
-    "/home/saint/.nuget/packages/microsoft.netcore.app.ref/8.0.32/microsoft.netcore.app.ref.8.0.32.nupkg.sha512",
-    "/home/saint/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.32/microsoft.aspnetcore.app.ref.8.0.32.nupkg.sha512"
+    "/home/saint/.nuget/packages/npgsql.entityframeworkcore.postgresql/8.0.11/npgsql.entityframeworkcore.postgresql.8.0.11.nupkg.sha512"
   ],
   "logs": []
 }

@@ -1,1 +1,11 @@
-{"Version":1,"Hash":"3MHKrKHF0AhoiHj0vcK6ABkq5SGIPbiELCk0PELMZJo=","Source":"BookCommunity.Api","BasePath":"/","Mode":"Root","ManifestType":"Build","ReferencedProjectsConfiguration":[],"DiscoveryPatterns":[],"Assets":[],"Endpoints":[]}
+{
+  "Version": 1,
+  "Hash": "5ukpWAh4brG48DYMYKITbfR4KSsRa+4S+ltVyH42lrE=",
+  "Source": "BookCommunity.Api",
+  "BasePath": "_content/BookCommunity.Api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}

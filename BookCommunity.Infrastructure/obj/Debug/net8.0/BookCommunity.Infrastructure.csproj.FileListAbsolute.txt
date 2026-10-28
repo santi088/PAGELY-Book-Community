@@ -13,3 +13,4 @@
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/refint/BookCommunity.Infrastructure.dll
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookCommunity.Infrastructure.pdb
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/ref/BookCommunity.Infrastructure.dll
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookCommunity.Infrastructure.sourcelink.json

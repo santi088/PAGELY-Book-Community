@@ -10,3 +10,4 @@
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Core/obj/Debug/net8.0/BookCommunity.Core.pdb
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Core/obj/Debug/net8.0/ref/BookCommunity.Core.dll
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Core/obj/Debug/net8.0/BookCommunity.Core.csproj.AssemblyReference.cache
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Core/obj/Debug/net8.0/BookCommunity.Core.sourcelink.json

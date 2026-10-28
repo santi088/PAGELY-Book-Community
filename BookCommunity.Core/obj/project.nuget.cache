@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "XCh1yaUadJo=",
+  "dgSpecHash": "6mLrW2kIH1A=",
   "success": true,
   "projectFilePath": "/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Core/BookCommunity.Core.csproj",
   "expectedPackageFiles": [
@@ -21,9 +21,7 @@
     "/home/saint/.nuget/packages/microsoft.extensions.logging/8.0.1/microsoft.extensions.logging.8.0.1.nupkg.sha512",
     "/home/saint/.nuget/packages/microsoft.extensions.logging.abstractions/8.0.2/microsoft.extensions.logging.abstractions.8.0.2.nupkg.sha512",
     "/home/saint/.nuget/packages/microsoft.extensions.options/8.0.2/microsoft.extensions.options.8.0.2.nupkg.sha512",
-    "/home/saint/.nuget/packages/microsoft.extensions.primitives/8.0.0/microsoft.extensions.primitives.8.0.0.nupkg.sha512",
-    "/home/saint/.nuget/packages/microsoft.netcore.app.ref/8.0.32/microsoft.netcore.app.ref.8.0.32.nupkg.sha512",
-    "/home/saint/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.32/microsoft.aspnetcore.app.ref.8.0.32.nupkg.sha512"
+    "/home/saint/.nuget/packages/microsoft.extensions.primitives/8.0.0/microsoft.extensions.primitives.8.0.0.nupkg.sha512"
   ],
   "logs": []
 }
