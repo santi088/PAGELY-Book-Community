@@ -59,12 +59,19 @@ export class AuthService {
         return true;
     }
     
-    requireAdmin() {
+    async requireAdmin() {
         if (!this.requireAuth()) return false;
+        // Try to load current user if not already loaded
+        if (!this.currentUser) {
+            try {
+                await this.loadCurrentUser();
+            } catch (e) {
+                console.error('Failed to load current user:', e);
+                return false;
+            }
+        }
         if (!this.isAdmin()) {
-            // Don't spam alerts, show error in page instead
             console.error('Admin access required - user roles:', this.currentUser?.roles);
-            // Redirect to dashboard with error
             if (!window.location.pathname.includes('dashboard.html')) {
                 window.location.href = 'dashboard.html?error=admin_required';
             }

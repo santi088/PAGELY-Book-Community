@@ -14,7 +14,9 @@
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
         
-        if (!auth.requireAdmin()) {
+        const ok = await auth.requireAdmin();
+        if (!ok) {
+            // requireAdmin handles redirect/error
         } else {
             document.getElementById('app').innerHTML = renderLayout('Books Management');
             initLayout();

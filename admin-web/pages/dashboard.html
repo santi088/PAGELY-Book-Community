@@ -13,41 +13,31 @@
         import { auth } from '../js/auth.js';
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
-        
-        if (!auth.requireAdmin()) {
-            // Will redirect
+
+        // Verify admin access before rendering dashboard
+        const isAdmin = await auth.requireAdmin();
+        if (!isAdmin) {
+            // requireAdmin already redirects or handles the error
+            // Stay on login or show error
         } else {
             document.getElementById('app').innerHTML = renderLayout('Dashboard');
             initLayout();
             loadDashboard();
         }
-        
+
         async function loadDashboard() {
             const content = document.getElementById('pageContent');
-            if (!auth.currentUser) {
-                try {
-                    await auth.loadCurrentUser();
-                } catch (e) {
-                    document.getElementById('app').innerHTML = '<div class="alert alert-error">Not authenticated</div>';
-                    return;
-                }
-            }
-            if (!auth.isAdmin()) {
-                document.getElementById('app').innerHTML = '<div class="alert alert-error">Admin access required</div>';
-                return;
-            }
             content.innerHTML = '<div class="loading">Loading...</div>';
-            
+
             try {
-                // Try to get basic stats
                 const [books, genres, users] = await Promise.allSettled([
                     api.get('/api/books?pageSize=1'),
                     api.get('/api/genres'),
                     api.get('/api/admin/users')
                 ]);
-                
+
                 let statsHtml = '<div class="grid">';
-                
+
                 if (books.status === 'fulfilled') {
                     statsHtml += `
                         <div class="stat-card">
@@ -56,7 +46,7 @@
                         </div>
                     `;
                 }
-                
+
                 if (genres.status === 'fulfilled') {
                     statsHtml += `
                         <div class="stat-card">
@@ -65,7 +55,7 @@
                         </div>
                     `;
                 }
-                
+
                 if (users.status === 'fulfilled') {
                     statsHtml += `
                         <div class="stat-card">
@@ -74,9 +64,9 @@
                         </div>
                     `;
                 }
-                
+
                 statsHtml += '</div>';
-                
+
                 content.innerHTML = `
                     ${statsHtml}
                     <div class="card">
@@ -86,24 +76,14 @@
                         <p style="color: var(--text-light);">Use the sidebar to manage books, genres, users, and reports.</p>
                     </div>
                 `;
-        } catch (error) {
-            if (error.status === 401 || error.status === 403) {
-                content.innerHTML = `<div class="alert alert-error">Authorization failed: ${error.message}. Please ensure you have admin privileges.</div>`;
-            } else {
-                content.innerHTML = `<div class="alert alert-error">Error loading dashboard: ${error.message}</div>`;
+            } catch (error) {
+                if (error.status === 401 || error.status === 403) {
+                    content.innerHTML = `<div class="alert alert-error">Authorization failed: ${error.message}. Please ensure you have admin privileges.</div>`;
+                } else {
+                    content.innerHTML = `<div class="alert alert-error">Error loading dashboard: ${error.message}</div>`;
+                }
             }
-        }
         }
     </script>
 </body>
 </html>
-                
-                // If we got here and user might not be loaded, try to load
-                if (!auth.currentUser) {
-                    try {
-                        await auth.loadCurrentUser();
-                    } catch (e) {
-                        content.innerHTML = `<div class="alert alert-error">Failed to load user: ${e.message}</div>`;
-                        return;
-                    }
-                }
