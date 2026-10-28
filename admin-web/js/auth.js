@@ -28,6 +28,7 @@ export class AuthService {
             this.currentUser = user;
             return user;
         } catch (error) {
+            console.error('Failed to load current user:', error);
             this.currentUser = null;
             api.setAuthToken(null);
             throw error;

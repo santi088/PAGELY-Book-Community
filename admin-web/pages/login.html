@@ -67,10 +67,19 @@
             try {
                 await auth.login(email, password);
                 // Check if user is admin
-                await auth.loadCurrentUser();
+                try {
+                    await auth.loadCurrentUser();
+                } catch (e) {
+                    alertDiv.className = 'alert alert-error';
+                    alertDiv.textContent = 'Failed to load user details: ' + e.message;
+                    alertDiv.style.display = 'block';
+                    api.setAuthToken(null);
+                    auth.currentUser = null;
+                    return;
+                }
                 if (!auth.isAdmin()) {
                     alertDiv.className = 'alert alert-error';
-                    alertDiv.textContent = 'Admin access required. Your account does not have admin privileges.';
+                    alertDiv.textContent = 'Admin access required. Your account does not have admin privileges. Roles: ' + JSON.stringify(auth.currentUser?.roles || auth.currentUser?.Roles);
                     alertDiv.style.display = 'block';
                     api.setAuthToken(null);
                     auth.currentUser = null;
