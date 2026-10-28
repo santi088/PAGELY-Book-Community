@@ -129,3 +129,10 @@
 - Commits created for each batch
 - PostgreSQL not available in environment - migrations generated but not applied; commands documented
 - Moving to final report
+
+## Task 1: Windows Setup (2026-10-28)
+- Created docs/WINDOWS_SETUP.md with PowerShell-friendly instructions (Postgres install, role/db creation, user-secrets/env, migrations, run, health check, troubleshooting)
+- Updated README.md with link to Windows setup
+- Verified on Fedora: dotnet build succeeds, dotnet test passes (1/1), EF Core tool available, API runs and /health returns Healthy
+- Windows-specific commands not executed on Fedora (documented as requiring Windows testing)
+- No secrets committed; configuration uses user-secrets/env vars

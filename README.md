@@ -40,3 +40,6 @@ Some integration tests may require a running PostgreSQL instance.
 - docs/PLAN.md - Plan
 - docs/PROGRESS.md - Progress/blockers
 - docs/MAUI_INTEGRATION.md - MAUI integration guide
+
+## Windows Setup
+See [docs/WINDOWS_SETUP.md](docs/WINDOWS_SETUP.md) for Windows 10/11 instructions (PowerShell, pgAdmin/psql, user-secrets/env vars, migrations).
