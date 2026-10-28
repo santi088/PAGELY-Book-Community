@@ -131,8 +131,25 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = check => check.Tags.Contains("ready")
 });
 
+// Seed database
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<BookCommunity.Infrastructure.Data.ApplicationDbContext>();
+        var userManager = services.GetRequiredService<UserManager<BookCommunity.Core.Entities.ApplicationUser>>();
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+        await BookCommunity.Infrastructure.Data.DbSeeder.SeedAsync(context, userManager, roleManager);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
+    }
+}
+
 app.Run();
 
 // Make Program class accessible for integration tests
 public partial class Program { }
-

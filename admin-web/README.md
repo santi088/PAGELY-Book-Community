@@ -57,3 +57,6 @@ Use an admin account created in the backend (via seeding or direct DB/registrati
 - **CORS errors**: Backend needs CORS for http://localhost:8080
 - **401/403**: Check token and admin role
 - **Connection errors**: Verify API is running on correct URL
+
+## Admin Account
+Set `Admin__Email` and `Admin__Password` as environment variables before starting the API (see root docs/WINDOWS_SETUP.md). The API seeds roles and creates/promotes the admin on startup if those variables are set.

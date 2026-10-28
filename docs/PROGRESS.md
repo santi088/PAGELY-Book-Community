@@ -146,3 +146,9 @@
 - Documentation: admin-web/README.md, updated root README
 - Tested: backend builds and tests pass
 - No fake data; all features use real API endpoints where available
+
+## Task 2b: Admin Seeding (2026-10-28)
+- Wired DbSeeder.SeedAsync into Program.cs startup with scoped services (UserManager, RoleManager, ApplicationDbContext)
+- Seeder creates Admin/User roles if missing, creates/promotes admin from Admin__Email/Admin__Password env vars, seeds genres/books if empty; safe to run repeatedly
+- Updated docs/WINDOWS_SETUP.md and admin-web/README.md with exact PowerShell and Bash commands
+- Build succeeded

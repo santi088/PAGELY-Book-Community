@@ -92,3 +92,22 @@ Expected: `Healthy`
 ## Notes
 - Creating DB vs applying migrations vs seeding: creating DB is step 3; applying migrations is step 6 (schema); seeding is app-internal (DbSeeder) and depends on environment/config - no automatic import is guaranteed.
 - Do not reset/delete data.
+
+## 10) Create an admin account (required for admin frontend)
+The API seeds roles/genres/books on startup. To create an admin user, set environment variables before running the API:
+
+**PowerShell:**
+```powershell
+$env:Admin__Email="admin@yourdomain.com"
+$env:Admin__Password="CHANGE_THIS_STRONG_PASSWORD"
+dotnet run --project BookCommunity.Api
+```
+
+**Bash (Fedora/Linux):**
+```bash
+export Admin__Email="admin@yourdomain.com"
+export Admin__Password="CHANGE_THIS_STRONG_PASSWORD"
+dotnet run --project BookCommunity.Api
+```
+
+On first startup with these set, the seeder will create the Admin role if missing, create the user if it doesn't exist, and assign the Admin role. Safe to run repeatedly. No credentials are hardcoded or committed.
