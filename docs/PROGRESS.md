@@ -61,3 +61,15 @@
 
 ## Batch 3 In Progress
 - Implementing auth (register/login/me/logout), roles, JWT, suspended enforcement
+
+## Batch 3 Completed (2026-10-28)
+- Auth endpoints: register, login, me (/api/auth/me and /api/me), logout
+- JWT auth, roles (Admin/User), Identity configured
+- Suspended user enforcement
+- DTOs, validation
+- Build succeeded
+- Commit: feat: implement authentication
+- Moving to Batch 4: Catalog and discovery
+
+## Batch 4 In Progress
+- Implementing catalog, genres, search/filter/paginate, discovery shelves
