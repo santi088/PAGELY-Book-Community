@@ -16,28 +16,77 @@
         
         const ok = await auth.requireAdmin();
         if (!ok) {
-            // requireAdmin handles redirect/error
         } else {
             document.getElementById('app').innerHTML = renderLayout('Books Management');
             initLayout();
             loadBooks();
         }
-        
+
+        let editingBookId = null;
+
         async function loadBooks(page = 1) {
             const content = document.getElementById('pageContent');
             content.innerHTML = '<div class="loading">Loading...</div>';
-            
+
             try {
                 const data = await api.get(`/api/books?page=${page}&pageSize=20`);
                 const books = data.items || data.Items || [];
                 const totalCount = data.totalCount || data.TotalCount || 0;
-                
+                const pageSize = data.pageSize || data.PageSize || 20;
+                const pageNum = data.page || data.Page || 1;
+                const totalPages = data.totalPages || data.TotalPages || 1;
+
                 let html = `
                     <div class="card">
                         <div class="card-header">
                             <h2>Books (${totalCount})</h2>
-                            <button class="btn btn-primary" onclick="alert('Book creation via admin endpoint available - use API directly or extend UI')">Add Book</button>
+                            <button class="btn btn-primary" onclick="showBookForm()">Add Book</button>
                         </div>
+
+                        <div id="bookFormContainer" style="display: none; margin-bottom: 1rem;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 id="formTitle">Add New Book</h3>
+                                    <button class="btn btn-secondary btn-sm" onclick="hideBookForm()" style="float: right;">Cancel</button>
+                                </div>
+                                <form id="bookForm" onsubmit="saveBook(event)">
+                                    <input type="hidden" id="bookId">
+                                    <div class="form-group">
+                                        <label>Title <span style="color: var(--danger);">*</span></label>
+                                        <input type="text" id="bookTitle" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Author <span style="color: var(--danger);">*</span></label>
+                                        <input type="text" id="bookAuthor" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Description</label>
+                                        <textarea id="bookDescription" rows="3"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>ISBN</label>
+                                        <input type="text" id="bookISBN">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Publication Year</label>
+                                        <input type="number" id="bookPublicationYear" min="1000" max="9999">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Cover Image URL</label>
+                                        <input type="url" id="bookCoverImageUrl">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Is Active</label>
+                                        <select id="bookIsActive">
+                                            <option value="true">Yes</option>
+                                            <option value="false">No</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Save Book</button>
+                                </form>
+                            </div>
+                        </div>
+
                         <table>
                             <thead>
                                 <tr>
@@ -51,38 +100,114 @@
                             </thead>
                             <tbody>
                 `;
-                
+
                 if (books.length === 0) {
                     html += '<tr><td colspan="6" class="empty-state">No books found</td></tr>';
                 } else {
                     for (const book of books) {
+                        const id = book.id || book.Id;
                         html += `
                             <tr>
-                                <td>${escapeHtml(book.title || book.Title)}</td>
-                                <td>${escapeHtml(book.author || book.Author)}</td>
+                                <td>${escapeHtml(book.title || book.Title || '')}</td>
+                                <td>${escapeHtml(book.author || book.Author || '')}</td>
                                 <td>${book.averageRating || book.AverageRating || 0}</td>
                                 <td>${book.reviewCount || book.ReviewCount || 0}</td>
                                 <td>${book.isActive !== false ? 'Yes' : 'No'}</td>
                                 <td>
-                                    <button class="btn btn-sm btn-secondary" onclick="alert('Edit via PUT /api/admin/books/{id}')">Edit</button>
+                                    <button class="btn btn-sm btn-secondary" onclick="editBook('${id}')">Edit</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteBook('${id}', '${escapeHtml(book.title || book.Title || '')}')">Delete</button>
                                 </td>
                             </tr>
                         `;
                     }
                 }
-                
+
                 html += `
                             </tbody>
                         </table>
+
+                        <div class="pagination">
+                            ${pageNum > 1 ? `<button onclick="loadBooks(${pageNum - 1})">Previous</button>` : '<button disabled>Previous</button>'}
+                            <span>Page ${pageNum} of ${totalPages}</span>
+                            ${pageNum < totalPages ? `<button onclick="loadBooks(${pageNum + 1})">Next</button>` : '<button disabled>Next</button>'}
+                        </div>
                     </div>
                 `;
-                
+
                 content.innerHTML = html;
             } catch (error) {
                 content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
             }
         }
-        
+
+        function showBookForm() {
+            editingBookId = null;
+            document.getElementById('bookId').value = '';
+            document.getElementById('formTitle').textContent = 'Add New Book';
+            document.getElementById('bookForm').reset();
+            document.getElementById('bookIsActive').value = 'true';
+            document.getElementById('bookFormContainer').style.display = 'block';
+        }
+
+        function hideBookForm() {
+            document.getElementById('bookFormContainer').style.display = 'none';
+        }
+
+        async function saveBook(e) {
+            e.preventDefault();
+            const bookData = {
+                title: document.getElementById('bookTitle').value,
+                author: document.getElementById('bookAuthor').value,
+                description: document.getElementById('bookDescription').value || null,
+                isbn: document.getElementById('bookISBN').value || null,
+                publicationYear: document.getElementById('bookPublicationYear').value ? parseInt(document.getElementById('bookPublicationYear').value) : null,
+                coverImageUrl: document.getElementById('bookCoverImageUrl').value || null,
+                isActive: document.getElementById('bookIsActive').value === 'true'
+            };
+
+            try {
+                if (editingBookId) {
+                    await api.put(`/api/admin/books/${editingBookId}`, bookData);
+                } else {
+                    await api.post('/api/admin/books', bookData);
+                }
+                hideBookForm();
+                loadBooks(1);
+            } catch (error) {
+                alert('Error saving book: ' + error.message);
+            }
+        }
+
+        async function editBook(id) {
+            try {
+                const data = await api.get(`/api/books/${id}`);
+                const book = data;
+                editingBookId = id;
+                document.getElementById('formTitle').textContent = 'Edit Book';
+                document.getElementById('bookId').value = id;
+                document.getElementById('bookTitle').value = book.title || book.Title || '';
+                document.getElementById('bookAuthor').value = book.author || book.Author || '';
+                document.getElementById('bookDescription').value = book.description || book.Description || '';
+                document.getElementById('bookISBN').value = book.isbn || book.ISBN || '';
+                document.getElementById('bookPublicationYear').value = book.publicationYear || book.PublicationYear || '';
+                document.getElementById('bookCoverImageUrl').value = book.coverImageUrl || book.CoverImageUrl || '';
+                document.getElementById('bookIsActive').value = (book.isActive !== false && book.IsActive !== false) ? 'true' : 'false';
+                document.getElementById('bookFormContainer').style.display = 'block';
+            } catch (error) {
+                alert('Error loading book: ' + error.message);
+            }
+        }
+
+        async function deleteBook(id, title) {
+            if (!confirm(`Are you sure you want to deactivate "${title}"?`)) return;
+            try {
+                await api.delete(`/api/admin/books/${id}`);
+                loadBooks(1);
+            } catch (error) {
+                alert('Error deleting book: ' + error.message);
+            }
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text || '';

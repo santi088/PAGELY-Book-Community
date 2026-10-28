@@ -16,21 +16,20 @@
         
         const ok = await auth.requireAdmin();
         if (!ok) {
-            // requireAdmin handles redirect/error
         } else {
             document.getElementById('app').innerHTML = renderLayout('Reports & Moderation');
             initLayout();
             loadReports();
         }
-        
+
         async function loadReports() {
             const content = document.getElementById('pageContent');
             content.innerHTML = '<div class="loading">Loading...</div>';
-            
+
             try {
                 const reports = await api.get('/api/admin/reports');
                 const reportList = Array.isArray(reports) ? reports : [];
-                
+
                 let html = `
                     <div class="card">
                         <div class="card-header">
@@ -49,44 +48,71 @@
                             </thead>
                             <tbody>
                 `;
-                
+
                 if (reportList.length === 0) {
                     html += '<tr><td colspan="6" class="empty-state">No reports found</td></tr>';
                 } else {
                     for (const report of reportList) {
+                        const id = report.id || report.Id;
                         const status = report.status || report.Status;
+                        const statusLabel = status === 0 ? 'Pending' : status === 1 ? 'Dismissed' : 'Resolved';
+                        const statusClass = status === 0 ? 'pending' : status === 1 ? 'dismissed' : 'resolved';
                         html += `
                             <tr>
                                 <td>${escapeHtml(report.reason || report.Reason)}</td>
-                                <td>${escapeHtml((report.reviewText || report.ReviewText || '').substring(0, 50))}...</td>
-                                <td>${status === 0 ? 'Pending' : status === 1 ? 'Dismissed' : 'Resolved'}</td>
+                                <td>${escapeHtml((report.reviewText || report.ReviewText || '').substring(0, 60))}${report.reviewText && report.reviewText.length > 60 ? '...' : ''}</td>
+                                <td><span class="status-${statusClass}">${statusLabel}</span></td>
                                 <td>${escapeHtml(report.reporterEmail || report.ReporterEmail)}</td>
                                 <td>${new Date(report.createdAt || report.CreatedAt).toLocaleDateString()}</td>
                                 <td>
-                                    <button class="btn btn-sm btn-primary" onclick="alert('Moderate via PUT /api/admin/reports/{id}/moderate')">Moderate</button>
+                                    ${status === 0 ? `
+                                        <button class="btn btn-sm btn-primary" onclick="moderateReport('${id}', 'Dismissed')">Dismiss</button>
+                                        <button class="btn btn-sm btn-success" onclick="moderateReport('${id}', 'Resolved')">Resolve</button>
+                                    ` : `<span style="color: var(--text-light);">${statusLabel}</span>`}
                                 </td>
                             </tr>
                         `;
                     }
                 }
-                
+
                 html += `
                             </tbody>
                         </table>
                     </div>
                 `;
-                
+
                 content.innerHTML = html;
             } catch (error) {
                 content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
             }
         }
-        
+
+        async function moderateReport(id, action) {
+            const notes = prompt(`Enter moderation notes for ${action}:`);
+            if (notes === null) return;
+            const hideReview = action === 'Resolved' && confirm('Hide the reported review?');
+            try {
+                await api.put(`/api/admin/reports/${id}/moderate`, {
+                    status: action === 'Dismissed' ? 'Dismissed' : 'Resolved',
+                    moderationNotes: notes || '',
+                    hideReview: hideReview
+                });
+                loadReports();
+            } catch (error) {
+                alert('Error moderating report: ' + error.message);
+            }
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text || '';
             return div.innerHTML;
         }
     </script>
+    <style>
+        .status-pending { color: #ea580c; font-weight: 600; }
+        .status-dismissed { color: #6b7280; }
+        .status-resolved { color: #16a34a; font-weight: 600; }
+    </style>
 </body>
 </html>
