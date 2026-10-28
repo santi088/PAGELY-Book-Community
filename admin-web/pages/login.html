@@ -70,9 +70,10 @@
                 await auth.loadCurrentUser();
                 if (!auth.isAdmin()) {
                     alertDiv.className = 'alert alert-error';
-                    alertDiv.textContent = 'Admin access required. Contact administrator.';
+                    alertDiv.textContent = 'Admin access required. Your account does not have admin privileges.';
                     alertDiv.style.display = 'block';
-                    auth.logout();
+                    api.setAuthToken(null);
+                    auth.currentUser = null;
                     return;
                 }
                 window.location.href = 'dashboard.html';

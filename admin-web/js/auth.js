@@ -46,7 +46,8 @@ export class AuthService {
     
     isAdmin() {
         if (!this.currentUser) return false;
-        return this.currentUser.roles && this.currentUser.roles.includes('Admin');
+        const roles = this.currentUser.roles || this.currentUser.Roles || [];
+        return Array.isArray(roles) && roles.includes('Admin');
     }
     
     requireAuth() {
@@ -60,8 +61,12 @@ export class AuthService {
     requireAdmin() {
         if (!this.requireAuth()) return false;
         if (!this.isAdmin()) {
-            alert('Admin access required');
-            window.location.href = '/admin-web/pages/dashboard.html';
+            // Don't spam alerts, show error in page instead
+            console.error('Admin access required - user roles:', this.currentUser?.roles);
+            // Redirect to dashboard with error
+            if (!window.location.pathname.includes('dashboard.html')) {
+                window.location.href = 'dashboard.html?error=admin_required';
+            }
             return false;
         }
         return true;

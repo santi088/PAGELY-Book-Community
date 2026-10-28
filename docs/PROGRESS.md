@@ -152,3 +152,8 @@
 - Seeder creates Admin/User roles if missing, creates/promotes admin from Admin__Email/Admin__Password env vars, seeds genres/books if empty; safe to run repeatedly
 - Updated docs/WINDOWS_SETUP.md and admin-web/README.md with exact PowerShell and Bash commands
 - Build succeeded
+
+## Task 3: Fix Admin Access Loop (2026-10-28)
+- Fixed alert loops in admin frontend (removed repeated alerts, use inline errors/redirects)
+- Fixed role checking to handle both camelCase/PascalCase
+- Root cause likely: role claim type mismatch or missing claims in token; need to verify JWT claims
