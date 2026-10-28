@@ -39,3 +39,12 @@
 - Added Core entities (User, Book, Genre, BookGenre, Review, ReviewLike, ReadingListEntry, Report)
 - Added Infrastructure DbContext with relationships, indexes, unique constraints
 - Added DbSeeder for dev data and optional admin
+
+## Batch 2 Completed (2026-10-28)
+- Entities and relationships with constraints/indexes
+- DbContext configured
+- DbSeeder added
+- Build succeeded
+- Commit: feat: add database schema and migrations
+- Note: No PostgreSQL available; migrations not applied. EF Core migration files can be generated with dotnet ef tools when needed.
+- Moving to Batch 3: Authentication and authorization
