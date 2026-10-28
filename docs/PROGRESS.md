@@ -24,3 +24,18 @@
 
 ## Next
 - Complete Batch 1 foundation, build (if possible), commit, move to Batch 2
+
+## Batch 1 Completed (2026-10-28)
+- Created solution with Api/Core/Infrastructure/Tests (net8.0; .NET 10 SDK not available)
+- Added NuGet packages (EF Core 8, Npgsql, Identity, JWT Bearer, Swagger, test libs)
+- Configured API with Controllers, Swagger with Bearer auth, Health checks, error handling baseline
+- Added HealthController and /health endpoints
+- Added .env.example, README.md
+- Build succeeded
+- Commit: feat: establish API foundation
+- Moving to Batch 2: Database foundation
+
+## Batch 2 In Progress
+- Added Core entities (User, Book, Genre, BookGenre, Review, ReviewLike, ReadingListEntry, Report)
+- Added Infrastructure DbContext with relationships, indexes, unique constraints
+- Added DbSeeder for dev data and optional admin

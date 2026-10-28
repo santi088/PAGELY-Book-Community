@@ -711,6 +711,9 @@
       },
       "System.Threading.Channels/6.0.0": {},
       "BookCommunity.Core/1.0.0": {
+        "dependencies": {
+          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "8.0.11"
+        },
         "runtime": {
           "BookCommunity.Core.dll": {
             "assemblyVersion": "1.0.0",
