@@ -109,3 +109,14 @@
 
 ## Batch 7 In Progress
 - Implementing reports, moderation, admin endpoints
+
+## Batch 7 Completed (2026-10-28)
+- Report creation, admin report queue, moderation (dismiss/resolve, hide review)
+- User management (list, suspend/reactivate)
+- Book/Genre CRUD for admins (books soft-deleted by deactivation)
+- Build succeeded
+- Commit: feat: add moderation and admin endpoints
+- Moving to Batch 8: Hardening and handoff
+
+## Batch 8 In Progress
+- Tests, docs, hardening

@@ -1,10 +1,12 @@
+using Xunit;
+
 namespace BookCommunity.Tests;
 
-public class UnitTest1
+public class BasicTests
 {
     [Fact]
-    public void Test1()
+    public void BasicTest()
     {
-
+        Assert.True(true);
     }
 }
