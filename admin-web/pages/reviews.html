@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reviews - Book Community Admin</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        import { auth } from '../js/auth.js';
+        import { renderLayout, initLayout } from '../js/layout.js';
+        
+        if (!auth.requireAdmin()) {
+        } else {
+            document.getElementById('app').innerHTML = renderLayout('Reviews');
+            initLayout();
+            loadReviews();
+        }
+        
+        function loadReviews() {
+            const content = document.getElementById('pageContent');
+            content.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Reviews</h2>
+                    </div>
+                    <div class="alert alert-info">
+                        Review management is available through the Reports page. Direct review listing/deletion endpoints for admins are not exposed in the current API.
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

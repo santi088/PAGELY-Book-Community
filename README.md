@@ -43,3 +43,6 @@ Some integration tests may require a running PostgreSQL instance.
 
 ## Windows Setup
 See [docs/WINDOWS_SETUP.md](docs/WINDOWS_SETUP.md) for Windows 10/11 instructions (PowerShell, pgAdmin/psql, user-secrets/env vars, migrations).
+
+## Admin Frontend
+A static admin website is available in `admin-web/`. See [admin-web/README.md](admin-web/README.md) for setup instructions.

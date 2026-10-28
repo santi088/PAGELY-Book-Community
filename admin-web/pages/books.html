@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Books - Book Community Admin</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        import { auth } from '../js/auth.js';
+        import { api } from '../js/api.js';
+        import { renderLayout, initLayout } from '../js/layout.js';
+        
+        if (!auth.requireAdmin()) {
+        } else {
+            document.getElementById('app').innerHTML = renderLayout('Books Management');
+            initLayout();
+            loadBooks();
+        }
+        
+        async function loadBooks(page = 1) {
+            const content = document.getElementById('pageContent');
+            content.innerHTML = '<div class="loading">Loading...</div>';
+            
+            try {
+                const data = await api.get(`/api/books?page=${page}&pageSize=20`);
+                const books = data.items || data.Items || [];
+                const totalCount = data.totalCount || data.TotalCount || 0;
+                
+                let html = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Books (${totalCount})</h2>
+                            <button class="btn btn-primary" onclick="alert('Book creation via admin endpoint available - use API directly or extend UI')">Add Book</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Author</th>
+                                    <th>Rating</th>
+                                    <th>Reviews</th>
+                                    <th>Active</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                if (books.length === 0) {
+                    html += '<tr><td colspan="6" class="empty-state">No books found</td></tr>';
+                } else {
+                    for (const book of books) {
+                        html += `
+                            <tr>
+                                <td>${escapeHtml(book.title || book.Title)}</td>
+                                <td>${escapeHtml(book.author || book.Author)}</td>
+                                <td>${book.averageRating || book.AverageRating || 0}</td>
+                                <td>${book.reviewCount || book.ReviewCount || 0}</td>
+                                <td>${book.isActive !== false ? 'Yes' : 'No'}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-secondary" onclick="alert('Edit via PUT /api/admin/books/{id}')">Edit</button>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                content.innerHTML = html;
+            } catch (error) {
+                content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

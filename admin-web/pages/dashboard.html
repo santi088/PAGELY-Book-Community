@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Book Community Admin</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        import { auth } from '../js/auth.js';
+        import { api } from '../js/api.js';
+        import { renderLayout, initLayout } from '../js/layout.js';
+        
+        if (!auth.requireAdmin()) {
+            // Will redirect
+        } else {
+            document.getElementById('app').innerHTML = renderLayout('Dashboard');
+            initLayout();
+            loadDashboard();
+        }
+        
+        async function loadDashboard() {
+            const content = document.getElementById('pageContent');
+            content.innerHTML = '<div class="loading">Loading...</div>';
+            
+            try {
+                // Try to get basic stats
+                const [books, genres, users] = await Promise.allSettled([
+                    api.get('/api/books?pageSize=1'),
+                    api.get('/api/genres'),
+                    api.get('/api/admin/users')
+                ]);
+                
+                let statsHtml = '<div class="grid">';
+                
+                if (books.status === 'fulfilled') {
+                    statsHtml += `
+                        <div class="stat-card">
+                            <h3>${books.value.totalCount || books.value.TotalCount || 0}</h3>
+                            <p>Total Books</p>
+                        </div>
+                    `;
+                }
+                
+                if (genres.status === 'fulfilled') {
+                    statsHtml += `
+                        <div class="stat-card">
+                            <h3>${Array.isArray(genres.value) ? genres.value.length : 0}</h3>
+                            <p>Genres</p>
+                        </div>
+                    `;
+                }
+                
+                if (users.status === 'fulfilled') {
+                    statsHtml += `
+                        <div class="stat-card">
+                            <h3>${Array.isArray(users.value) ? users.value.length : 0}</h3>
+                            <p>Users</p>
+                        </div>
+                    `;
+                }
+                
+                statsHtml += '</div>';
+                
+                content.innerHTML = `
+                    ${statsHtml}
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Quick Actions</h2>
+                        </div>
+                        <p style="color: var(--text-light);">Use the sidebar to manage books, genres, users, and reports.</p>
+                    </div>
+                `;
+            } catch (error) {
+                content.innerHTML = `<div class="alert alert-error">Error loading dashboard: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

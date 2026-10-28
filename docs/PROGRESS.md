@@ -136,3 +136,13 @@
 - Verified on Fedora: dotnet build succeeds, dotnet test passes (1/1), EF Core tool available, API runs and /health returns Healthy
 - Windows-specific commands not executed on Fedora (documented as requiring Windows testing)
 - No secrets committed; configuration uses user-secrets/env vars
+
+## Task 2: Admin Frontend (2026-10-28) - Batch 1-9
+- Created admin-web/ with HTML/CSS/Vanilla JS (no build tools)
+- API inventory in docs/ADMIN_API_INVENTORY.md
+- Shared api.js, auth.js, layout.js
+- Pages: login, dashboard, books, genres, users, reviews, reports
+- Added CORS for http://localhost:8080 in API (small justified change)
+- Documentation: admin-web/README.md, updated root README
+- Tested: backend builds and tests pass
+- No fake data; all features use real API endpoints where available

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users - Book Community Admin</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        import { auth } from '../js/auth.js';
+        import { api } from '../js/api.js';
+        import { renderLayout, initLayout } from '../js/layout.js';
+        
+        if (!auth.requireAdmin()) {
+        } else {
+            document.getElementById('app').innerHTML = renderLayout('Users Management');
+            initLayout();
+            loadUsers();
+        }
+        
+        async function loadUsers() {
+            const content = document.getElementById('pageContent');
+            content.innerHTML = '<div class="loading">Loading...</div>';
+            
+            try {
+                const users = await api.get('/api/admin/users');
+                const userList = Array.isArray(users) ? users : [];
+                
+                let html = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Users (${userList.length})</h2>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Name</th>
+                                    <th>Roles</th>
+                                    <th>Suspended</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                if (userList.length === 0) {
+                    html += '<tr><td colspan="5" class="empty-state">No users found</td></tr>';
+                } else {
+                    for (const user of userList) {
+                        const roles = Array.isArray(user.roles || user.Roles) ? (user.roles || user.Roles).join(', ') : '';
+                        const suspended = user.isSuspended || user.IsSuspended;
+                        html += `
+                            <tr>
+                                <td>${escapeHtml(user.email || user.Email)}</td>
+                                <td>${escapeHtml((user.firstName || user.FirstName || '') + ' ' + (user.lastName || user.LastName || ''))}</td>
+                                <td>${escapeHtml(roles)}</td>
+                                <td>${suspended ? 'Yes' : 'No'}</td>
+                                <td>
+                                    ${suspended ? 
+                                        `<button class="btn btn-sm btn-primary" onclick="alert('Reactivate via PUT /api/admin/users/{id}/reactivate')">Reactivate</button>` :
+                                        `<button class="btn btn-sm btn-danger" onclick="alert('Suspend via PUT /api/admin/users/{id}/suspend')">Suspend</button>`
+                                    }
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                content.innerHTML = html;
+            } catch (error) {
+                content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

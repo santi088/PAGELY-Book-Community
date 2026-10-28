@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - Book Community Admin</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        import { auth } from '../js/auth.js';
+        import { api } from '../js/api.js';
+        import { renderLayout, initLayout } from '../js/layout.js';
+        
+        if (!auth.requireAdmin()) {
+        } else {
+            document.getElementById('app').innerHTML = renderLayout('Reports & Moderation');
+            initLayout();
+            loadReports();
+        }
+        
+        async function loadReports() {
+            const content = document.getElementById('pageContent');
+            content.innerHTML = '<div class="loading">Loading...</div>';
+            
+            try {
+                const reports = await api.get('/api/admin/reports');
+                const reportList = Array.isArray(reports) ? reports : [];
+                
+                let html = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Reports (${reportList.length})</h2>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Reason</th>
+                                    <th>Review</th>
+                                    <th>Status</th>
+                                    <th>Reporter</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                if (reportList.length === 0) {
+                    html += '<tr><td colspan="6" class="empty-state">No reports found</td></tr>';
+                } else {
+                    for (const report of reportList) {
+                        const status = report.status || report.Status;
+                        html += `
+                            <tr>
+                                <td>${escapeHtml(report.reason || report.Reason)}</td>
+                                <td>${escapeHtml((report.reviewText || report.ReviewText || '').substring(0, 50))}...</td>
+                                <td>${status === 0 ? 'Pending' : status === 1 ? 'Dismissed' : 'Resolved'}</td>
+                                <td>${escapeHtml(report.reporterEmail || report.ReporterEmail)}</td>
+                                <td>${new Date(report.createdAt || report.CreatedAt).toLocaleDateString()}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" onclick="alert('Moderate via PUT /api/admin/reports/{id}/moderate')">Moderate</button>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                content.innerHTML = html;
+            } catch (error) {
+                content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

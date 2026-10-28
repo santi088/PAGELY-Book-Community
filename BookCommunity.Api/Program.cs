@@ -95,6 +95,17 @@ builder.Services.AddHealthChecks();
 // Register services
 builder.Services.AddScoped<BookCommunity.Api.Services.TokenService>();
 
+// CORS for local development
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DevCors", policy =>
+    {
+        policy.WithOrigins("http://localhost:8080", "http://127.0.0.1:8080")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -105,6 +116,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("DevCors");
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -122,3 +135,4 @@ app.Run();
 
 // Make Program class accessible for integration tests
 public partial class Program { }
+
