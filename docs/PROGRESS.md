@@ -73,3 +73,16 @@
 
 ## Batch 4 In Progress
 - Implementing catalog, genres, search/filter/paginate, discovery shelves
+
+## Batch 4 Completed (2026-10-28)
+- Catalog listing with search (title/author), genre filter, sorting, pagination (DB-level)
+- Book details
+- Genres listing
+- Discovery: popular/top-rated/recent with ranking rules
+- Indexes in place
+- Build succeeded
+- Commit: feat: add catalog and discovery
+- Moving to Batch 5: Reviews and likes
+
+## Batch 5 In Progress
+- Implementing reviews, ratings, likes, ownership, aggregates
