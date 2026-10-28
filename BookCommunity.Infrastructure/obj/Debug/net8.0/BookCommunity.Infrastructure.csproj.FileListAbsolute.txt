@@ -1,0 +1,15 @@
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/bin/Debug/net8.0/BookCommunity.Infrastructure.deps.json
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/bin/Debug/net8.0/BookCommunity.Infrastructure.dll
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/bin/Debug/net8.0/BookCommunity.Infrastructure.pdb
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/bin/Debug/net8.0/BookCommunity.Core.dll
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/bin/Debug/net8.0/BookCommunity.Core.pdb
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookCommunity.Infrastructure.csproj.AssemblyReference.cache
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookCommunity.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookCommunity.Infrastructure.AssemblyInfoInputs.cache
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookCommunity.Infrastructure.AssemblyInfo.cs
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookCommunity.Infrastructure.csproj.CoreCompileInputs.cache
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookComm.3FB8FB3B.Up2Date
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookCommunity.Infrastructure.dll
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/refint/BookCommunity.Infrastructure.dll
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/BookCommunity.Infrastructure.pdb
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Infrastructure/obj/Debug/net8.0/ref/BookCommunity.Infrastructure.dll
