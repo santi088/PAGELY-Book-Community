@@ -48,3 +48,16 @@
 - Commit: feat: add database schema and migrations
 - Note: No PostgreSQL available; migrations not applied. EF Core migration files can be generated with dotnet ef tools when needed.
 - Moving to Batch 3: Authentication and authorization
+
+## Batch 2 Completed (2026-10-28) - Final
+- Entities and relationships with constraints/indexes
+- DbContext configured with Identity
+- Initial migration generated (InitialCreate) - not applied (no PostgreSQL)
+- DbSeeder added
+- Build succeeded
+- Commit: feat: add database schema and migrations
+- Moving to Batch 3: Authentication and authorization
+- Moving to Batch 3: Authentication and authorization
+
+## Batch 3 In Progress
+- Implementing auth (register/login/me/logout), roles, JWT, suspended enforcement
