@@ -157,3 +157,12 @@
 - Fixed alert loops in admin frontend (removed repeated alerts, use inline errors/redirects)
 - Fixed role checking to handle both camelCase/PascalCase
 - Root cause likely: role claim type mismatch or missing claims in token; need to verify JWT claims
+
+## Task 2c: Admin UI CRUD + Cleanup (2026-10-28)
+- Removed 655 bin/obj files from git tracking (chore: remove bin/obj from git tracking)
+- Implemented full CRUD for books (create/edit/delete via POST/PUT/DELETE /api/admin/books)
+- Implemented full CRUD for genres (create/edit/delete via POST/PUT/DELETE /api/admin/genres)
+- Implemented user suspend/reactivate (PUT /api/admin/users/{id}/suspend|reactivate)
+- Implemented report moderation (PUT /api/admin/reports/{id}/moderate with dismiss/resolve/hide review)
+- Backend already had POST /api/admin/books, PUT /api/admin/books/{id}, DELETE /api/admin/books/{id}, POST/PUT/DELETE /api/admin/genres
+- Build and tests pass
