@@ -92,6 +92,9 @@ builder.Services.AddSwaggerGen(c =>
 // Health checks
 builder.Services.AddHealthChecks();
 
+// Register services
+builder.Services.AddScoped<BookCommunity.Api.Services.TokenService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -114,8 +117,6 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready")
 });
-
-builder.Services.AddScoped<BookCommunity.Api.Services.TokenService>();
 
 app.Run();
 

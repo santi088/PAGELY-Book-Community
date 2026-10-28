@@ -120,3 +120,12 @@
 
 ## Batch 8 In Progress
 - Tests, docs, hardening
+
+## Batch 8 Completed (2026-10-28)
+- Added API.md documentation
+- Basic tests added and passing
+- All batches completed
+- Build succeeded, tests passed
+- Commits created for each batch
+- PostgreSQL not available in environment - migrations generated but not applied; commands documented
+- Moving to final report

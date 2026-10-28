@@ -113,11 +113,6 @@
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/BookCommunity.Api.MvcApplicationPartsAssemblyInfo.cache
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/staticwebassets.build.json
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/staticwebassets.development.json
-/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/staticwebassets/msbuild.BookCommunity.Api.Microsoft.AspNetCore.StaticWebAssets.props
-/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/staticwebassets/msbuild.build.BookCommunity.Api.props
-/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/staticwebassets/msbuild.buildMultiTargeting.BookCommunity.Api.props
-/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/staticwebassets/msbuild.buildTransitive.BookCommunity.Api.props
-/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/staticwebassets.pack.json
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/scopedcss/bundle/BookCommunity.Api.styles.css
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/BookComm.91A73E27.Up2Date
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/BookCommunity.Api.dll
@@ -125,3 +120,11 @@
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/BookCommunity.Api.pdb
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/BookCommunity.Api.genruntimeconfig.cache
 /home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/ref/BookCommunity.Api.dll
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/bin/Debug/net8.0/BookCommunity.Api.staticwebassets.endpoints.json
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/rpswa.dswa.cache.json
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/rjimswa.dswa.cache.json
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/rjsmrazor.dswa.cache.json
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/rjsmcshtml.dswa.cache.json
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/staticwebassets.build.json.cache
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/staticwebassets.build.endpoints.json
+/home/saint/Documents/PAGELY-Book-Community/BookCommunity.Api/obj/Debug/net8.0/swae.build.ex.cache
