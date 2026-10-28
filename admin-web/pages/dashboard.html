@@ -24,6 +24,18 @@
         
         async function loadDashboard() {
             const content = document.getElementById('pageContent');
+            if (!auth.currentUser) {
+                try {
+                    await auth.loadCurrentUser();
+                } catch (e) {
+                    document.getElementById('app').innerHTML = '<div class="alert alert-error">Not authenticated</div>';
+                    return;
+                }
+            }
+            if (!auth.isAdmin()) {
+                document.getElementById('app').innerHTML = '<div class="alert alert-error">Admin access required</div>';
+                return;
+            }
             content.innerHTML = '<div class="loading">Loading...</div>';
             
             try {
@@ -85,3 +97,13 @@
     </script>
 </body>
 </html>
+                
+                // If we got here and user might not be loaded, try to load
+                if (!auth.currentUser) {
+                    try {
+                        await auth.loadCurrentUser();
+                    } catch (e) {
+                        content.innerHTML = `<div class="alert alert-error">Failed to load user: ${e.message}</div>`;
+                        return;
+                    }
+                }
