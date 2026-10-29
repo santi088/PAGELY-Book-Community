@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Users - Book Community Admin</title>
-    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/styles.css?v=20261029b">
 </head>
 <body>
     <div id="app"></div>
@@ -13,12 +13,24 @@
         import { auth } from '../js/auth.js';
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
-        
+
         const ok = await auth.requireAdmin();
         if (!ok) {
         } else {
-            document.getElementById('app').innerHTML = renderLayout('Users Management');
+            document.getElementById('app').innerHTML = renderLayout('Users', 'Manage account access and suspension.');
             initLayout();
+            if (!window.__adminEscapeBound) {
+                window.__adminEscapeBound = true;
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        document.querySelectorAll('.modal.active').forEach((modal) => modal.classList.remove('active'));
+                    }
+                });
+            }
+            // Ensure current user is loaded
+            if (!auth.currentUser) {
+                try { await auth.loadCurrentUser(); } catch (e) { /* ignore */ }
+            }
             loadUsers();
         }
 
@@ -35,6 +47,7 @@
                         <div class="card-header">
                             <h2>Users (${userList.length})</h2>
                         </div>
+                        <div class="table-wrap">
                         <table>
                             <thead>
                                 <tr>
@@ -51,21 +64,25 @@
                 if (userList.length === 0) {
                     html += '<tr><td colspan="5" class="empty-state">No users found</td></tr>';
                 } else {
+                    const currentEmail = (auth.currentUser?.email || auth.currentUser?.Email || '').toLowerCase();
+                    const currentId = auth.currentUser?.id || auth.currentUser?.Id;
                     for (const user of userList) {
                         const id = user.id || user.Id;
                         const roles = Array.isArray(user.roles || user.Roles) ? (user.roles || user.Roles).join(', ') : '';
                         const suspended = user.isSuspended || user.IsSuspended;
+                        const email = user.email || user.Email || '';
+                        const isSelf = (currentId && currentId === id) || (currentEmail && currentEmail === email.toLowerCase());
                         html += `
                             <tr>
-                                <td>${escapeHtml(user.email || user.Email)}</td>
+                                <td>${escapeHtml(email)}</td>
                                 <td>${escapeHtml((user.firstName || user.FirstName || '') + ' ' + (user.lastName || user.LastName || ''))}</td>
                                 <td>${escapeHtml(roles)}</td>
                                 <td>${suspended ? 'Yes' : 'No'}</td>
                                 <td>
-                                    ${suspended ? 
-                                        `<button class="btn btn-sm btn-primary" onclick="reactivateUser('${id}', '${escapeHtml(user.email || user.Email)}')">Reactivate</button>` :
-                                        `<button class="btn btn-sm btn-danger" onclick="suspendUser('${id}', '${escapeHtml(user.email || user.Email)}')">Suspend</button>`
-                                    }
+                                    ${isSelf ? '<span style="color: var(--text-light);">-</span>' : (suspended ? 
+                                        `<button class="btn btn-sm btn-primary" data-action="reactivateUser" data-id="${id}" data-email="${escapeHtml(email)}">Reactivate</button>` :
+                                        `<button class="btn btn-sm btn-danger" data-action="suspendUser" data-id="${id}" data-email="${escapeHtml(email)}">Suspend</button>`
+                                    )}
                                 </td>
                             </tr>
                         `;
@@ -75,18 +92,36 @@
                 html += `
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 `;
 
                 content.innerHTML = html;
+                attachUserListeners(content);
             } catch (error) {
                 content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
             }
         }
 
+        function attachUserListeners(content) {
+            content.querySelectorAll('[data-action="suspendUser"]').forEach(b => {
+                b.addEventListener('click', () => suspendUser(b.dataset.id, b.dataset.email));
+            });
+            content.querySelectorAll('[data-action="reactivateUser"]').forEach(b => {
+                b.addEventListener('click', () => reactivateUser(b.dataset.id, b.dataset.email));
+            });
+        }
+
         async function suspendUser(id, email) {
             if (!confirm(`Suspend user "${email}"?`)) return;
             try {
+                // Prevent self-suspension if we know current user
+                const currentEmail = auth.currentUser?.email || auth.currentUser?.Email;
+                const currentId = auth.currentUser?.id || auth.currentUser?.Id;
+                if ((currentId && currentId === id) || (currentEmail && currentEmail.toLowerCase() === email.toLowerCase())) {
+                    alert('You cannot suspend your own account.');
+                    return;
+                }
                 await api.put(`/api/admin/users/${id}/suspend`);
                 loadUsers();
             } catch (error) {

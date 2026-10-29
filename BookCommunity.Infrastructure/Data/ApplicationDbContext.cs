@@ -113,6 +113,19 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(b => b.Author);
         builder.Entity<Book>()
             .HasIndex(b => b.IsActive);
+        
+        // Unique constraint: prevent duplicate imports from same provider
+        builder.Entity<Book>()
+            .HasIndex(b => new { b.ExternalProvider, b.ExternalId })
+            .IsUnique()
+            .HasFilter("\"ExternalProvider\" IS NOT NULL AND \"ExternalId\" IS NOT NULL");
+        
+        // Unique constraint: prevent duplicate ISBNs (allow multiple NULLs)
+        builder.Entity<Book>()
+            .HasIndex(b => b.ISBN)
+            .IsUnique()
+            .HasFilter("\"ISBN\" IS NOT NULL");
+        
         builder.Entity<Genre>()
             .HasIndex(g => g.Name)
             .IsUnique();

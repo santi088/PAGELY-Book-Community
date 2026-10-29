@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reviews - Book Community Admin</title>
-    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/styles.css?v=20261029b">
 </head>
 <body>
     <div id="app"></div>
@@ -17,7 +17,7 @@
         if (!ok) {
             // requireAdmin handles redirect/error
         } else {
-            document.getElementById('app').innerHTML = renderLayout('Reviews');
+            document.getElementById('app').innerHTML = renderLayout('Reviews', 'Review moderation tools.');
             initLayout();
             loadReviews();
         }

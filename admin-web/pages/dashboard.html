@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Book Community Admin</title>
-    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/styles.css?v=20261029b">
 </head>
 <body>
     <div id="app"></div>
@@ -20,7 +20,7 @@
             // requireAdmin already redirects or handles the error
             // Stay on login or show error
         } else {
-            document.getElementById('app').innerHTML = renderLayout('Dashboard');
+            document.getElementById('app').innerHTML = renderLayout('Dashboard', 'Overview of catalog and administration activity.');
             initLayout();
             loadDashboard();
         }

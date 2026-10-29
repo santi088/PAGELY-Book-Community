@@ -53,7 +53,11 @@ if (!string.IsNullOrEmpty(jwtKey))
     });
 }
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -94,6 +98,13 @@ builder.Services.AddHealthChecks();
 
 // Register services
 builder.Services.AddScoped<BookCommunity.Api.Services.TokenService>();
+
+// Open Library search service
+builder.Services.AddHttpClient<BookCommunity.Api.Services.IOpenLibraryService, BookCommunity.Api.Services.OpenLibraryService>(
+    client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(15);
+    });
 
 // CORS for local development
 builder.Services.AddCors(options =>

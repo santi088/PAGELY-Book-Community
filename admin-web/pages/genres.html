@@ -4,7 +4,54 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Genres - Book Community Admin</title>
-    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/styles.css?v=20261029b">
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background-color: var(--card-bg);
+            margin: 2rem auto;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .modal-body {
+            padding: 1.5rem;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-light);
+        }
+    </style>
 </head>
 <body>
     <div id="app"></div>
@@ -13,12 +60,20 @@
         import { auth } from '../js/auth.js';
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
-        
+
         const ok = await auth.requireAdmin();
         if (!ok) {
         } else {
-            document.getElementById('app').innerHTML = renderLayout('Genres Management');
+            document.getElementById('app').innerHTML = renderLayout('Genres', 'Manage catalog categories.');
             initLayout();
+            if (!window.__adminEscapeBound) {
+                window.__adminEscapeBound = true;
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        document.querySelectorAll('.modal.active').forEach((modal) => modal.classList.remove('active'));
+                    }
+                });
+            }
             loadGenres();
         }
 
@@ -36,30 +91,37 @@
                     <div class="card">
                         <div class="card-header">
                             <h2>Genres (${genreList.length})</h2>
-                            <button class="btn btn-primary" onclick="showGenreForm()">Add Genre</button>
+                            <button class="btn btn-primary" data-action="showGenreForm">Add Genre</button>
                         </div>
 
-                        <div id="genreFormContainer" style="display: none; margin-bottom: 1rem;">
-                            <div class="card">
-                                <div class="card-header">
+                        <div id="genreModal" class="modal">
+                            <div class="modal-content">
+                                <div class="modal-header">
                                     <h3 id="genreFormTitle">Add New Genre</h3>
-                                    <button class="btn btn-secondary btn-sm" onclick="hideGenreForm()" style="float: right;">Cancel</button>
+                                    <button class="modal-close" data-action="hideGenreForm" aria-label="Close">&times;</button>
                                 </div>
-                                <form id="genreForm" onsubmit="saveGenre(event)">
-                                    <input type="hidden" id="genreId">
-                                    <div class="form-group">
-                                        <label>Name <span style="color: var(--danger);">*</span></label>
-                                        <input type="text" id="genreName" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Description</label>
-                                        <textarea id="genreDescription" rows="3"></textarea>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary">Save Genre</button>
-                                </form>
+                                <div class="modal-body">
+                                    <form id="genreForm">
+                                        <input type="hidden" id="genreId">
+                                        <div class="form-group">
+                                            <label>Name <span style="color: var(--danger);">*</span></label>
+                                            <input type="text" id="genreName" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Description</label>
+                                            <textarea id="genreDescription" rows="3"></textarea>
+                                        </div>
+                                        <div id="genreFormError" class="alert alert-error" style="display: none;"></div>
+                                        <div style="display: flex; gap: 0.5rem;">
+                                            <button type="submit" class="btn btn-primary">Save Genre</button>
+                                            <button type="button" class="btn btn-secondary" data-action="hideGenreForm">Cancel</button>
+                                        </div>
+                                    </form>
+                                </div>
                             </div>
                         </div>
 
+                        <div class="table-wrap">
                         <table>
                             <thead>
                                 <tr>
@@ -81,8 +143,8 @@
                                 <td>${escapeHtml(genre.name || genre.Name || '')}</td>
                                 <td>${escapeHtml(genre.description || genre.Description || '')}</td>
                                 <td>
-                                    <button class="btn btn-sm btn-secondary" onclick="editGenre('${id}')">Edit</button>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteGenre('${id}', '${escapeHtml(genre.name || genre.Name || '')}')">Delete</button>
+                                    <button class="btn btn-sm btn-secondary" data-action="editGenre" data-id="${id}">Edit</button>
+                                    <button class="btn btn-sm btn-danger" data-action="deleteGenre" data-id="${id}" data-title="${escapeHtml(genre.name || genre.Name || '')}">Delete</button>
                                 </td>
                             </tr>
                         `;
@@ -92,13 +154,42 @@
                 html += `
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 `;
 
                 content.innerHTML = html;
+                attachGenreListeners(content);
             } catch (error) {
                 content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
             }
+        }
+
+        function attachGenreListeners(content) {
+            // Genre form
+            content.querySelectorAll('[data-action="showGenreForm"]').forEach(b => {
+                b.addEventListener('click', showGenreForm);
+            });
+            content.querySelectorAll('[data-action="hideGenreForm"]').forEach(b => {
+                b.addEventListener('click', hideGenreForm);
+            });
+            const form = content.querySelector('#genreForm');
+            if (form) {
+                form.addEventListener('submit', saveGenre);
+            }
+            const modal = content.querySelector('#genreModal');
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) hideGenreForm();
+                });
+            }
+            // Genre actions
+            content.querySelectorAll('[data-action="editGenre"]').forEach(b => {
+                b.addEventListener('click', () => editGenre(b.dataset.id));
+            });
+            content.querySelectorAll('[data-action="deleteGenre"]').forEach(b => {
+                b.addEventListener('click', () => deleteGenre(b.dataset.id, b.dataset.title));
+            });
         }
 
         function showGenreForm() {
@@ -106,11 +197,15 @@
             document.getElementById('genreId').value = '';
             document.getElementById('genreFormTitle').textContent = 'Add New Genre';
             document.getElementById('genreForm').reset();
-            document.getElementById('genreFormContainer').style.display = 'block';
+            const err = document.getElementById('genreFormError');
+            if (err) { err.style.display = 'none'; err.textContent = ''; }
+            const modal = document.getElementById('genreModal');
+            if (modal) modal.classList.add('active');
         }
 
         function hideGenreForm() {
-            document.getElementById('genreFormContainer').style.display = 'none';
+            const modal = document.getElementById('genreModal');
+            if (modal) modal.classList.remove('active');
         }
 
         async function saveGenre(e) {
@@ -119,6 +214,8 @@
                 name: document.getElementById('genreName').value,
                 description: document.getElementById('genreDescription').value || null
             };
+            const err = document.getElementById('genreFormError');
+            if (err) { err.style.display = 'none'; err.textContent = ''; }
 
             try {
                 if (editingGenreId) {
@@ -129,7 +226,12 @@
                 hideGenreForm();
                 loadGenres();
             } catch (error) {
-                alert('Error saving genre: ' + error.message);
+                if (err) {
+                    err.textContent = error.message || 'Error saving genre';
+                    err.style.display = 'block';
+                } else {
+                    alert('Error saving genre: ' + error.message);
+                }
             }
         }
 
@@ -146,7 +248,10 @@
                 document.getElementById('genreId').value = id;
                 document.getElementById('genreName').value = genre.name || genre.Name || '';
                 document.getElementById('genreDescription').value = genre.description || genre.Description || '';
-                document.getElementById('genreFormContainer').style.display = 'block';
+                const err = document.getElementById('genreFormError');
+                if (err) { err.style.display = 'none'; err.textContent = ''; }
+                const modal = document.getElementById('genreModal');
+                if (modal) modal.classList.add('active');
             } catch (error) {
                 alert('Error loading genre: ' + error.message);
             }

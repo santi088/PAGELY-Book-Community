@@ -1,13 +1,13 @@
 import { auth } from './auth.js';
 
-export function renderLayout(pageTitle) {
-    const userInfo = auth.currentUser ? 
-        `<div class="user-info">${auth.currentUser.email}</div>` : 
-        '<div class="user-info">Not logged in</div>';
-    
+export function renderLayout(pageTitle, pageDescription = '') {
+    const userInfo = auth.currentUser
+        ? `<div class="user-info">${auth.currentUser.email}</div>`
+        : '<div class="user-info">Not logged in</div>';
+
     return `
-        <div class="app-container">
-            <aside class="sidebar">
+        <div class="app-shell">
+            <aside class="sidebar" aria-label="Primary navigation">
                 <div class="sidebar-header">
                     <h2>Book Community Admin</h2>
                 </div>
@@ -21,13 +21,16 @@ export function renderLayout(pageTitle) {
                 </nav>
                 <div class="sidebar-footer">
                     ${userInfo}
-                    <button class="btn-logout" id="btnLogout">Logout</button>
+                    <button class="btn btn-ghost btn-sm btn-logout" id="btnLogout" type="button">Log out</button>
                 </div>
             </aside>
             <main class="main-content">
-                <div class="page-header">
-                    <h1>${pageTitle}</h1>
-                </div>
+                <header class="page-header">
+                    <div>
+                        <h1>${pageTitle}</h1>
+                        ${pageDescription ? `<p>${pageDescription}</p>` : ''}
+                    </div>
+                </header>
                 <div id="pageContent"></div>
             </main>
         </div>
@@ -39,9 +42,10 @@ export function initLayout() {
     document.querySelectorAll('.nav-item').forEach(item => {
         if (item.dataset.page === currentPage) {
             item.classList.add('active');
+            item.setAttribute('aria-current', 'page');
         }
     });
-    
+
     const btnLogout = document.getElementById('btnLogout');
     if (btnLogout) {
         btnLogout.addEventListener('click', () => {

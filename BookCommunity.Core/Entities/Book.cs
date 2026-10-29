@@ -37,6 +37,12 @@ public class Book
     
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     
+    [MaxLength(50)]
+    public string? ExternalProvider { get; set; }
+    
+    [MaxLength(100)]
+    public string? ExternalId { get; set; }
+    
     public ICollection<BookGenre> BookGenres { get; set; } = new List<BookGenre>();
     public ICollection<Review> Reviews { get; set; } = new List<Review>();
     public ICollection<ReadingListEntry> ReadingListEntries { get; set; } = new List<ReadingListEntry>();

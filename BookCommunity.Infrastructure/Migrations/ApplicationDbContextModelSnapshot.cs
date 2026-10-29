@@ -129,6 +129,14 @@ namespace BookCommunity.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ExternalProvider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("ISBN")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
@@ -157,9 +165,17 @@ namespace BookCommunity.Infrastructure.Migrations
 
                     b.HasIndex("Author");
 
+                    b.HasIndex("ISBN")
+                        .IsUnique()
+                        .HasFilter("\"ISBN\" IS NOT NULL");
+
                     b.HasIndex("IsActive");
 
                     b.HasIndex("Title");
+
+                    b.HasIndex("ExternalProvider", "ExternalId")
+                        .IsUnique()
+                        .HasFilter("\"ExternalProvider\" IS NOT NULL AND \"ExternalId\" IS NOT NULL");
 
                     b.ToTable("Books");
                 });

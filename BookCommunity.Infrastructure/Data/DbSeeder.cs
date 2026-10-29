@@ -8,8 +8,6 @@ public class DbSeeder
 {
     public static async Task SeedAsync(ApplicationDbContext context, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager)
     {
-        await context.Database.EnsureCreatedAsync();
-        
         // Create roles
         if (!await roleManager.RoleExistsAsync("Admin"))
         {
