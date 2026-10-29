@@ -32,7 +32,11 @@ public class ReportsController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
-        
+
+        var currentUser = await _userManager.FindByIdAsync(userId);
+        if (currentUser == null || currentUser.IsSuspended)
+            return Forbid();
+
         var review = await _context.Reviews.FindAsync(reviewId);
         if (review == null || review.IsDeleted)
             return NotFound();

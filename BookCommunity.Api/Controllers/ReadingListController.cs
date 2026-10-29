@@ -3,6 +3,7 @@ using BookCommunity.Api.DTOs.ReadingList;
 using BookCommunity.Core.Entities;
 using BookCommunity.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -15,10 +16,12 @@ namespace BookCommunity.Api.Controllers;
 public class ReadingListController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    
-    public ReadingListController(ApplicationDbContext context)
+    private readonly UserManager<ApplicationUser> _userManager;
+
+    public ReadingListController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
     {
         _context = context;
+        _userManager = userManager;
     }
     
     [HttpGet]
@@ -30,7 +33,11 @@ public class ReadingListController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
-        
+
+        var currentUser = await _userManager.FindByIdAsync(userId);
+        if (currentUser == null || currentUser.IsSuspended)
+            return Forbid();
+
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 100) pageSize = 20;
         
@@ -84,7 +91,11 @@ public class ReadingListController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
-        
+
+        var currentUser = await _userManager.FindByIdAsync(userId);
+        if (currentUser == null || currentUser.IsSuspended)
+            return Forbid();
+
         var book = await _context.Books.FindAsync(bookId);
         if (book == null || !book.IsActive)
             return NotFound();
@@ -120,7 +131,11 @@ public class ReadingListController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
-        
+
+        var currentUser = await _userManager.FindByIdAsync(userId);
+        if (currentUser == null || currentUser.IsSuspended)
+            return Forbid();
+
         var entry = await _context.ReadingListEntries
             .FirstOrDefaultAsync(rle => rle.UserId == userId && rle.BookId == bookId);
         

@@ -617,3 +617,16 @@ Modernization:
 - Database was not reset/dropped/reseeded.
 - No MAUI files were touched.
 - No commit or push occurred.
+
+## Task 5: Mobile API audit and suspended-user write fix (2026-10-29)
+
+### Additional fix
+Suspended users with an existing JWT could still perform write operations on reviews, review likes, reports, and reading lists. Added server-side suspended-account checks to those endpoints.
+
+### Regression test
+Added `SuspendedUserAccessTests` verifying a suspended user receives 403 when attempting to update a review.
+
+### Verification
+- `dotnet build`: 0 errors, 0 warnings.
+- `dotnet test`: 29/29 passed.
+- Real HTTP audit completed for health, auth, books, genres, discovery, reviews, likes, reading lists, reports, and suspended-account behavior.

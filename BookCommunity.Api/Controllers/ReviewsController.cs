@@ -143,7 +143,11 @@ public class ReviewsController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
-        
+
+        var currentUser = await _userManager.FindByIdAsync(userId);
+        if (currentUser == null || currentUser.IsSuspended)
+            return Forbid();
+
         var review = await _context.Reviews
             .Include(r => r.User)
             .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
@@ -185,7 +189,11 @@ public class ReviewsController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
-        
+
+        var currentUser = await _userManager.FindByIdAsync(userId);
+        if (currentUser == null || currentUser.IsSuspended)
+            return Forbid();
+
         var review = await _context.Reviews.FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
         if (review == null)
             return NotFound();
@@ -209,7 +217,11 @@ public class ReviewsController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
-        
+
+        var currentUser = await _userManager.FindByIdAsync(userId);
+        if (currentUser == null || currentUser.IsSuspended)
+            return Forbid();
+
         var review = await _context.Reviews.FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
         if (review == null)
             return NotFound();
@@ -241,7 +253,11 @@ public class ReviewsController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
-        
+
+        var currentUser = await _userManager.FindByIdAsync(userId);
+        if (currentUser == null || currentUser.IsSuspended)
+            return Forbid();
+
         var like = await _context.ReviewLikes
             .Include(rl => rl.Review)
             .FirstOrDefaultAsync(rl => rl.ReviewId == id && rl.UserId == userId);
