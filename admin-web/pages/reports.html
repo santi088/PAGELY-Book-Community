@@ -55,7 +55,9 @@
                 } else {
                     for (const report of reportList) {
                         const id = report.id || report.Id;
-                        const status = report.status ?? report.Status;
+                        const rawStatus = report.status ?? report.Status;
+                        const status = rawStatus === 0 || rawStatus === 'Pending' ? 0 :
+                            rawStatus === 1 || rawStatus === 'Dismissed' ? 1 : 2;
                         const statusLabel = status === 0 ? 'Pending' : status === 1 ? 'Dismissed' : 'Resolved';
                         const statusClass = status === 0 ? 'pending' : status === 1 ? 'dismissed' : 'resolved';
                         const reviewText = report.reviewText || report.ReviewText || '';
