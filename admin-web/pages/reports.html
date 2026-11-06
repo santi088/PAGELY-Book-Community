@@ -13,7 +13,7 @@
         import { auth } from '../js/auth.js';
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
-        
+
         const ok = await auth.requireAdmin();
         if (!ok) {
         } else {
@@ -35,18 +35,19 @@
                         <div class="card-header">
                             <h2>Reports (${reportList.length})</h2>
                         </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Reason</th>
-                                    <th>Review</th>
-                                    <th>Status</th>
-                                    <th>Reporter</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Reason</th>
+                                        <th>Review</th>
+                                        <th>Status</th>
+                                        <th>Reporter</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                 `;
 
                 if (reportList.length === 0) {
@@ -54,20 +55,23 @@
                 } else {
                     for (const report of reportList) {
                         const id = report.id || report.Id;
-                        const status = report.status || report.Status;
+                        const status = report.status ?? report.Status;
                         const statusLabel = status === 0 ? 'Pending' : status === 1 ? 'Dismissed' : 'Resolved';
                         const statusClass = status === 0 ? 'pending' : status === 1 ? 'dismissed' : 'resolved';
+                        const reviewText = report.reviewText || report.ReviewText || '';
                         html += `
                             <tr>
                                 <td>${escapeHtml(report.reason || report.Reason)}</td>
-                                <td>${escapeHtml((report.reviewText || report.ReviewText || '').substring(0, 60))}${report.reviewText && report.reviewText.length > 60 ? '...' : ''}</td>
+                                <td>${escapeHtml(reviewText.length > 80 ? reviewText.substring(0, 80) + '...' : reviewText)}</td>
                                 <td><span class="status-${statusClass}">${statusLabel}</span></td>
                                 <td>${escapeHtml(report.reporterEmail || report.ReporterEmail)}</td>
                                 <td>${new Date(report.createdAt || report.CreatedAt).toLocaleDateString()}</td>
                                 <td>
+                                    <button class="btn btn-sm btn-secondary" data-action="viewReport" data-id="${id}">View</button>
                                     ${status === 0 ? `
-                                        <button class="btn btn-sm btn-primary" onclick="moderateReport('${id}', 'Dismissed')">Dismiss</button>
-                                        <button class="btn btn-sm btn-success" onclick="moderateReport('${id}', 'Resolved')">Resolve</button>
+                                        <button class="btn btn-sm btn-primary" data-action="dismissReport" data-id="${id}">Dismiss</button>
+                                        <button class="btn btn-sm btn-success" data-action="resolveReport" data-id="${id}">Resolve</button>
+                                        <button class="btn btn-sm btn-danger" data-action="removeReview" data-id="${id}" data-review-id="${report.reviewId || report.ReviewId}">Remove Review</button>
                                     ` : `<span style="color: var(--text-light);">${statusLabel}</span>`}
                                 </td>
                             </tr>
@@ -76,14 +80,48 @@
                 }
 
                 html += `
-                            </tbody>
-                        </table>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="reportModal" class="modal">
+                        <div class="modal-content modal-sm">
+                            <div class="modal-header">
+                                <h3>Report Details</h3>
+                                <button class="modal-close" data-action="closeReportModal" aria-label="Close">&times;</button>
+                            </div>
+                            <div class="modal-body" id="reportModalBody"></div>
+                        </div>
                     </div>
                 `;
 
                 content.innerHTML = html;
+
+                const reportMap = new Map(reportList.map(r => [String(r.id || r.Id), r]));
+                content.querySelectorAll('[data-action="viewReport"]').forEach(b => {
+                    b.addEventListener('click', () => viewReport(reportMap.get(String(b.dataset.id))));
+                });
+                content.querySelectorAll('[data-action="dismissReport"]').forEach(b => {
+                    b.addEventListener('click', () => moderateReport(b.dataset.id, 'Dismissed'));
+                });
+                content.querySelectorAll('[data-action="resolveReport"]').forEach(b => {
+                    b.addEventListener('click', () => moderateReport(b.dataset.id, 'Resolved'));
+                });
+                content.querySelectorAll('[data-action="removeReview"]').forEach(b => {
+                    b.addEventListener('click', () => removeReview(b.dataset.id, b.dataset.reviewId));
+                });
+                content.querySelectorAll('[data-action="closeReportModal"]').forEach(b => {
+                    b.addEventListener('click', closeReportModal);
+                });
+                const modal = content.querySelector('#reportModal');
+                if (modal) {
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) closeReportModal();
+                    });
+                }
             } catch (error) {
-                content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+                content.innerHTML = `<div class="alert alert-error">Error: ${escapeHtml(error.message)}</div>`;
             }
         }
 
@@ -101,6 +139,43 @@
             } catch (error) {
                 alert('Error moderating report: ' + error.message);
             }
+        }
+
+        async function removeReview(reportId, reviewId) {
+            if (!confirm('Remove this review from the catalog?')) return;
+            try {
+                await api.delete(`/api/admin/reviews/${reviewId}`);
+                await api.put(`/api/admin/reports/${reportId}/moderate`, {
+                    status: 'Resolved',
+                    moderationNotes: 'Review removed by admin',
+                    hideReview: true
+                });
+                loadReports();
+            } catch (error) {
+                alert('Error removing review: ' + error.message);
+            }
+        }
+
+        function viewReport(report) {
+            const modal = document.getElementById('reportModal');
+            const body = document.getElementById('reportModalBody');
+            if (!modal || !body || !report) return;
+            const reviewText = report.reviewText || report.ReviewText || '';
+            body.innerHTML = `
+                <p><strong>Reason:</strong> ${escapeHtml(report.reason || report.Reason)}</p>
+                <p><strong>Reporter:</strong> ${escapeHtml(report.reporterEmail || report.ReporterEmail)}</p>
+                <p><strong>Created:</strong> ${new Date(report.createdAt || report.CreatedAt).toLocaleString()}</p>
+                <p><strong>Review rating:</strong> ${report.reviewRating ?? report.ReviewRating ?? ''}/5</p>
+                <p><strong>Full review:</strong></p>
+                <p>${escapeHtml(reviewText)}</p>
+                <p><strong>Details:</strong> ${escapeHtml(report.details || report.Details || 'None')}</p>
+            `;
+            modal.classList.add('active');
+        }
+
+        function closeReportModal() {
+            const modal = document.getElementById('reportModal');
+            if (modal) modal.classList.remove('active');
         }
 
         function escapeHtml(text) {

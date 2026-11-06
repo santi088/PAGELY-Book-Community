@@ -327,6 +327,48 @@ public class AdminController : ControllerBase
         });
     }
 
+    [HttpDelete("reviews/{id}")]
+    public async Task<IActionResult> DeleteReview(Guid id)
+    {
+        var review = await _context.Reviews
+            .Include(r => r.Book)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (review == null)
+            return NotFound();
+
+        if (!review.IsDeleted)
+        {
+            review.IsDeleted = true;
+            review.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            var book = review.Book;
+            if (book != null)
+            {
+                var reviews = await _context.Reviews
+                    .Where(r => r.BookId == book.Id && !r.IsDeleted && !r.IsHidden)
+                    .ToListAsync();
+
+                if (reviews.Any())
+                {
+                    book.AverageRating = Math.Round(reviews.Average(r => r.Rating), 2);
+                    book.ReviewCount = reviews.Count;
+                }
+                else
+                {
+                    book.AverageRating = 0;
+                    book.ReviewCount = 0;
+                }
+
+                book.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        return Ok(new { message = "Review removed" });
+    }
+
     [HttpPost("genres")]
     public async Task<ActionResult<GenreDto>> CreateGenre([FromBody] Genre genre)
     {
