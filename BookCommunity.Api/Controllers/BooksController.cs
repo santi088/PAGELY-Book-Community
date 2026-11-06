@@ -26,7 +26,7 @@ public class BooksController : ControllerBase
         [FromQuery] int pageSize = 20)
     {
         if (page < 1) page = 1;
-        if (pageSize < 1 || pageSize > 100) pageSize = 20;
+        if (pageSize < 1 || pageSize > 1000) pageSize = 20;
         
         var query = _context.Books
             .Include(b => b.BookGenres)
@@ -44,6 +44,12 @@ public class BooksController : ControllerBase
         if (!string.IsNullOrWhiteSpace(genre))
         {
             query = query.Where(b => b.BookGenres.Any(bg => bg.Genre.Name.ToLower() == genre.ToLower()));
+        }
+
+        // Top-rated lists should only contain books that actually have ratings.
+        if (string.Equals(sortBy, "rating", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(b => b.ReviewCount > 0 && b.AverageRating > 0);
         }
         
         // Sorting
