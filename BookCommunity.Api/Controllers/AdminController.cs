@@ -1,6 +1,7 @@
 using BookCommunity.Api.DTOs.Auth;
 using BookCommunity.Api.DTOs.Books;
 using BookCommunity.Api.DTOs.Genres;
+using BookCommunity.Api.DTOs.Reviews;
 using BookCommunity.Api.Services;
 using BookCommunity.Core.Entities;
 using BookCommunity.Infrastructure.Data;
@@ -280,6 +281,52 @@ public class AdminController : ControllerBase
         });
     }
     
+    [HttpGet("reviews")]
+    public async Task<ActionResult<PagedResult<AdminReviewDto>>> GetReviews(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 20;
+
+        var query = _context.Reviews
+            .Include(r => r.User)
+            .Include(r => r.Book)
+            .OrderByDescending(r => r.CreatedAt);
+
+        var totalCount = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var reviews = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(r => new AdminReviewDto
+            {
+                Id = r.Id,
+                UserId = r.UserId,
+                UserEmail = r.User.Email ?? "",
+                BookId = r.BookId,
+                BookTitle = r.Book.Title,
+                Rating = r.Rating,
+                ReviewText = r.ReviewText,
+                LikeCount = r.LikeCount,
+                IsHidden = r.IsHidden,
+                IsDeleted = r.IsDeleted,
+                CreatedAt = r.CreatedAt,
+                UpdatedAt = r.UpdatedAt
+            })
+            .ToListAsync();
+
+        return Ok(new PagedResult<AdminReviewDto>
+        {
+            Items = reviews,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = totalPages
+        });
+    }
+
     [HttpPost("genres")]
     public async Task<ActionResult<GenreDto>> CreateGenre([FromBody] Genre genre)
     {

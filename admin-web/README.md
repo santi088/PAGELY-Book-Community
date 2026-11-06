@@ -44,7 +44,7 @@ Use an admin account created in the backend (via seeding or direct DB/registrati
 - Genres - List/manage genres
 - Users - List users, suspend/reactivate
 - Reports - View and moderate reports
-- Reviews - Info page (moderation via Reports)
+- Reviews - List all reviews (read-only; moderation via Reports)
 
 ## Notes
 - All data comes from the real API
