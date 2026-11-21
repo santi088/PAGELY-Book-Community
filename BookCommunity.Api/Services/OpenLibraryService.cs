@@ -305,6 +305,10 @@ public class OpenLibraryService : IOpenLibraryService
                 }
 
                 var coverImageUrl = ExtractCoverImageUrl(root);
+                if (string.IsNullOrWhiteSpace(coverImageUrl) && workRoot.HasValue)
+                {
+                    coverImageUrl = ExtractCoverImageUrl(workRoot.Value);
+                }
 
                 var subjects = new List<string>();
                 if (root.TryGetProperty("subjects", out var subjectsProp) && subjectsProp.ValueKind == JsonValueKind.Array)
@@ -594,6 +598,11 @@ public class OpenLibraryService : IOpenLibraryService
                     return $"https://covers.openlibrary.org/b/id/{coverId}-M.jpg";
                 }
             }
+        }
+
+        if (root.TryGetProperty("cover_i", out var coverProp) && coverProp.ValueKind == JsonValueKind.Number && coverProp.TryGetInt32(out var coverId2))
+        {
+            return $"https://covers.openlibrary.org/b/id/{coverId2}-M.jpg";
         }
 
         return null;

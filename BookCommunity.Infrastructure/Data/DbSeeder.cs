@@ -38,6 +38,15 @@ public class DbSeeder
                 await userManager.CreateAsync(adminUser, adminPassword);
                 await userManager.AddToRoleAsync(adminUser, "Admin");
             }
+            else
+            {
+                await userManager.RemovePasswordAsync(adminUser);
+                await userManager.AddPasswordAsync(adminUser, adminPassword);
+                if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
+                {
+                    await userManager.AddToRoleAsync(adminUser, "Admin");
+                }
+            }
         }
         
         // Seed genres

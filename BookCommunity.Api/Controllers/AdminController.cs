@@ -123,12 +123,17 @@ public class AdminController : ControllerBase
         var book = await _context.Books.FindAsync(id);
         if (book == null)
             return NotFound();
-        
+
+        var readingEntries = await _context.ReadingListEntries
+            .Where(r => r.BookId == id)
+            .ToListAsync();
+        _context.ReadingListEntries.RemoveRange(readingEntries);
+
         // Soft delete by deactivating
         book.IsActive = false;
         book.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
-        return Ok(new { message = "Book deactivated" });
+        return Ok(new { message = "Book deactivated and removed from reading lists" });
     }
     
     [HttpGet("books/search")]
@@ -185,13 +190,19 @@ public class AdminController : ControllerBase
         
         if (existingByProvider != null)
         {
+            if (!existingByProvider.IsActive)
+            {
+                existingByProvider.IsActive = true;
+                existingByProvider.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
             return Ok(new ImportBookResultDto
             {
                 BookId = existingByProvider.Id,
                 Title = existingByProvider.Title,
                 Author = existingByProvider.Author,
                 IsNewImport = false,
-                Message = "Book already imported from Open Library"
+                Message = "Book restored from Open Library"
             });
         }
         
@@ -204,6 +215,12 @@ public class AdminController : ControllerBase
             
             if (existingByIsbn != null)
             {
+                if (!existingByIsbn.IsActive)
+                {
+                    existingByIsbn.IsActive = true;
+                    existingByIsbn.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
                 return Ok(new ImportBookResultDto
                 {
                     BookId = existingByIsbn.Id,
@@ -211,7 +228,7 @@ public class AdminController : ControllerBase
                     Author = existingByIsbn.Author,
                     IsNewImport = false,
                     ExistingIsbnMatch = existingByIsbn.ISBN,
-                    Message = "Book with this ISBN already exists in the catalog"
+                    Message = "Book restored by ISBN"
                 });
             }
         }

@@ -47,7 +47,8 @@ public class BooksController : ControllerBase
         }
 
         // Top-rated lists should only contain books that actually have ratings.
-        if (string.Equals(sortBy, "rating", StringComparison.OrdinalIgnoreCase))
+        // Do not apply this filter to text searches, so unrated books remain searchable.
+        if (string.Equals(sortBy, "rating", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(search))
         {
             query = query.Where(b => b.ReviewCount > 0 && b.AverageRating > 0);
         }

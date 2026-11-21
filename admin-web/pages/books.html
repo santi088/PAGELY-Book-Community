@@ -190,8 +190,6 @@
                                 </div>
                             </div>
 
-                            <div id="importLoading" class="loading" style="display: none;"></div>
-
                             <div id="importResults" style="margin-top: 1rem;">
                                 ${importCandidates.length === 0 ? '<p class="empty-state">Search for books to import from Open Library.</p>' : renderImportCandidates(importCandidates)}
                             </div>
@@ -380,7 +378,6 @@
             const query = queryInput ? queryInput.value.trim() : '';
             const errorDiv = document.getElementById('importError');
             const resultsDiv = document.getElementById('importResults');
-            const loadingDiv = document.getElementById('importLoading');
             const searchBtn = document.getElementById('importSearchBtn');
 
             if (!query) {
@@ -398,7 +395,6 @@
             importCandidates = [];
             if (errorDiv) { errorDiv.style.display = 'none'; errorDiv.textContent = ''; }
             if (resultsDiv) resultsDiv.innerHTML = '<div class="loading">Searching Open Library...</div>';
-            if (loadingDiv) loadingDiv.style.display = 'block';
             if (searchBtn) { searchBtn.disabled = true; searchBtn.textContent = 'Searching...'; }
 
             try {
@@ -429,7 +425,6 @@
             } finally {
                 if (requestId === openLibrarySearchRequestId) {
                     isOpenLibrarySearching = false;
-                    if (loadingDiv) loadingDiv.style.display = 'none';
                     if (searchBtn) { searchBtn.disabled = false; searchBtn.textContent = 'Search'; }
                 }
             }

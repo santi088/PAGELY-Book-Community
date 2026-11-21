@@ -1,22 +1,22 @@
 :root {
-    --color-primary: #2563eb;
-    --color-primary-hover: #1d4ed8;
-    --color-primary-soft: #eff6ff;
-    --color-danger: #dc2626;
-    --color-danger-hover: #b91c1c;
-    --color-success: #16a34a;
-    --color-warning: #d97706;
-    --color-bg: #f3f4f6;
-    --color-surface: #ffffff;
-    --color-surface-muted: #f9fafb;
-    --color-sidebar: #111827;
-    --color-sidebar-hover: #1f2937;
-    --color-sidebar-active: #2563eb;
-    --color-border: #e5e7eb;
-    --color-border-strong: #d1d5db;
-    --color-text: #111827;
-    --color-text-muted: #6b7280;
-    --color-text-inverse: #ffffff;
+    --color-primary: #7A6244;
+    --color-primary-hover: #5C4A34;
+    --color-primary-soft: #F3ECE0;
+    --color-danger: #A2544A;
+    --color-danger-hover: #8B4339;
+    --color-success: #6C8A6E;
+    --color-warning: #A98654;
+    --color-bg: #FBF6EA;
+    --color-surface: #FFFCF6;
+    --color-surface-muted: #F3ECE0;
+    --color-sidebar: #402A18;
+    --color-sidebar-hover: #5F4732;
+    --color-sidebar-active: #7A6244;
+    --color-border: #E8DDCB;
+    --color-border-strong: #D6C9B3;
+    --color-text: #402A18;
+    --color-text-muted: #7A6A56;
+    --color-text-inverse: #FFFCF6;
 
     --space-1: 0.25rem;
     --space-2: 0.5rem;
@@ -57,7 +57,7 @@
     --warning: var(--color-warning);
     --bg: var(--color-bg);
     --sidebar-bg: var(--color-sidebar);
-    --sidebar-text: #cbd5e1;
+    --sidebar-text: #E8DDCB;
     --sidebar-active: var(--color-primary);
     --border: var(--color-border);
     --border-strong: var(--color-border-strong);
@@ -488,9 +488,9 @@ tbody tr:last-child td {
 }
 
 .alert-info {
-    background-color: #eff6ff;
-    color: #1e40af;
-    border-color: #bfdbfe;
+    background-color: #F3ECE0;
+    color: #402A18;
+    border-color: #D6C9B3;
 }
 
 .alert-warning {
