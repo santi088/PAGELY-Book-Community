@@ -1,6 +1,6 @@
 import { auth } from './auth.js';
 
-export function renderLayout(pageTitle, pageDescription = '') {
+export function renderLayout(pageTitle, pageDescription = '', eyebrow = '') {
     const userInfo = auth.currentUser
         ? `<div class="user-info">${auth.currentUser.email}</div>`
         : '<div class="user-info">Not logged in</div>';
@@ -9,7 +9,13 @@ export function renderLayout(pageTitle, pageDescription = '') {
         <div class="app-shell">
             <aside class="sidebar" aria-label="Primary navigation">
                 <div class="sidebar-header">
-                    <h2>Book Community Admin</h2>
+                    <div class="brand">
+                        <img src="../img/pagely_logo.png" alt="">
+                        <div>
+                            <div class="brand-name">PAGELY</div>
+                            <div class="brand-sub">Community admin</div>
+                        </div>
+                    </div>
                 </div>
                 <nav class="sidebar-nav">
                     <a href="dashboard.html" class="nav-item" data-page="dashboard">Dashboard</a>
@@ -27,7 +33,9 @@ export function renderLayout(pageTitle, pageDescription = '') {
             <main class="main-content">
                 <header class="page-header">
                     <div>
+                        ${eyebrow ? `<div class="eyebrow">${eyebrow}</div>` : ''}
                         <h1>${pageTitle}</h1>
+                        <div class="title-rule"></div>
                         ${pageDescription ? `<p>${pageDescription}</p>` : ''}
                     </div>
                 </header>

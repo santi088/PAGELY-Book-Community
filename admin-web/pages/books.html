@@ -3,55 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Books - Book Community Admin</title>
-    <link rel="stylesheet" href="../css/styles.css?v=20261029b">
-    <style>
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.5);
-            align-items: center;
-            justify-content: center;
-        }
-        .modal.active {
-            display: flex;
-        }
-        .modal-content {
-            background-color: var(--card-bg);
-            margin: 2rem auto;
-            padding: 0;
-            border: 1px solid var(--border);
-            border-radius: 0.5rem;
-            width: 90%;
-            max-width: 600px;
-            max-height: 90vh;
-            overflow-y: auto;
-            position: relative;
-        }
-        .modal-header {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .modal-body {
-            padding: 1.5rem;
-        }
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: var(--text-light);
-        }
-    </style>
+    <title>Books - Pagely Admin</title>
+    <link rel="stylesheet" href="../css/styles.css?v=20261126a">
 </head>
 <body>
     <div id="app"></div>
@@ -61,483 +14,485 @@
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
 
-        let currentCatalogPage = 1;
-        let currentCatalogSearch = '';
-        let editingBookId = null;
-        let isImporting = false;
-        let importCandidates = [];
-        let openLibrarySearchState = 'idle';
-        let openLibrarySearchRequestId = 0;
-        let isOpenLibrarySearching = false;
-        let importingIds = new Set();
+        // ---- state ---------------------------------------------------------
+        const state = {
+            tab: 'catalog',
+            catalog: { page: 1, search: '', total: null, dirty: false },
+            editingBookId: null,
+            ol: { query: '', candidates: [], status: 'idle', requestId: 0, importing: new Set(), message: '' }
+        };
 
+        const ICON_SEARCH = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a7 7 0 100 14 7 7 0 000-14z"/><path d="M16.5 16.5L21 21"/></svg>';
+        const ICON_GLOBE = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4A2411" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.8 3 2.8 15 0 18"/><path d="M12 3c-2.8 3-2.8 15 0 18"/></svg>';
+        const ICON_SHELF = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4A2411" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h3.2v15H4z"/><path d="M9.2 4.5h3.2v15H9.2z"/><path d="M14.3 5.6l3-.8 3.6 14.1-3 .8z"/></svg>';
+
+        // ---- boot ----------------------------------------------------------
         const ok = await auth.requireAdmin();
-        if (!ok) {
-        } else {
-            document.getElementById('app').innerHTML = renderLayout('Books', 'Search the local catalog and import books from Open Library.');
+        if (ok) {
+            document.getElementById('app').innerHTML = renderLayout(
+                'Books',
+                'Manage the books already in your community catalog, or find new ones on Open Library and import them.',
+                'CATALOG');
             initLayout();
+            document.getElementById('pageContent').innerHTML = shellHtml();
+            bindShell();
+
             if (!window.__adminEscapeBound) {
                 window.__adminEscapeBound = true;
                 document.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') {
-                        document.querySelectorAll('.modal.active').forEach((modal) => modal.classList.remove('active'));
-                    }
+                    if (e.key === 'Escape') hideBookForm();
                 });
             }
-            loadBooks();
+
+            const initial = location.hash === '#openlibrary' ? 'openlibrary' : 'catalog';
+            switchTab(initial, false);
+            window.addEventListener('hashchange', () => {
+                switchTab(location.hash === '#openlibrary' ? 'openlibrary' : 'catalog', false);
+            });
+            loadCatalog(1);
         }
 
-        async function loadBooks(page = 1) {
-            currentCatalogPage = page;
-            const content = document.getElementById('pageContent');
-            content.innerHTML = '<div class="loading">Loading...</div>';
+        // ---- layout --------------------------------------------------------
+        function shellHtml() {
+            return `
+                <div class="tabs" role="tablist" aria-label="Book sources">
+                    <button class="tab" role="tab" id="tab-catalog" data-tab="catalog" aria-controls="panel-catalog">
+                        Imported Books <span class="count" id="catalogCount">…</span>
+                    </button>
+                    <button class="tab" role="tab" id="tab-openlibrary" data-tab="openlibrary" aria-controls="panel-openlibrary">
+                        Search Open Library
+                    </button>
+                </div>
+
+                <section class="tab-panel" id="panel-catalog" role="tabpanel" aria-labelledby="tab-catalog">
+                    <div class="toolbar">
+                        <span class="result-count" id="catalogSummary"></span>
+                        <button class="btn btn-primary" data-action="showBookForm">+ Add Book Manually</button>
+                    </div>
+                    <div class="searchbar">
+                        ${ICON_SEARCH}
+                        <input type="search" id="catalogSearch" placeholder="Search imported books by title or author…" autocomplete="off">
+                        <button class="btn btn-secondary btn-sm" id="catalogClearBtn" type="button" hidden>Clear</button>
+                        <button class="btn btn-primary" id="catalogSearchBtn" type="button">Search</button>
+                    </div>
+                    <div id="catalogResults"></div>
+                </section>
+
+                <section class="tab-panel" id="panel-openlibrary" role="tabpanel" aria-labelledby="tab-openlibrary" hidden>
+                    <div class="panel-intro">
+                        <div class="icon-tile">${ICON_GLOBE}</div>
+                        <div>
+                            <h2>Find books on Open Library</h2>
+                            <p>Search by title, author or ISBN. Importing adds the book to your catalog with its cover and details.</p>
+                        </div>
+                    </div>
+                    <div class="searchbar">
+                        ${ICON_SEARCH}
+                        <input type="search" id="importQuery" placeholder="Title, author or ISBN…" autocomplete="off">
+                        <button class="btn btn-secondary btn-sm" id="importClearBtn" type="button" hidden>Clear</button>
+                        <button class="btn btn-primary" id="importSearchBtn" type="button">Search</button>
+                    </div>
+                    <div id="importMessage"></div>
+                    <div id="importResults"></div>
+                </section>
+
+                <div id="bookModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 id="formTitle">Add New Book</h3>
+                            <button class="modal-close" data-action="hideBookForm" aria-label="Close">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="bookForm">
+                                <div class="form-group">
+                                    <label for="bookTitle">Title <span style="color: var(--danger);">*</span></label>
+                                    <input type="text" id="bookTitle" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="bookAuthor">Author <span style="color: var(--danger);">*</span></label>
+                                    <input type="text" id="bookAuthor" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="bookDescription">Description</label>
+                                    <textarea id="bookDescription" rows="3"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="bookISBN">ISBN</label>
+                                    <input type="text" id="bookISBN">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bookPublicationYear">Publication Year</label>
+                                    <input type="number" id="bookPublicationYear" min="1000" max="9999">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bookCoverImageUrl">Cover Image URL</label>
+                                    <input type="url" id="bookCoverImageUrl">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bookIsActive">Visible to readers</label>
+                                    <select id="bookIsActive">
+                                        <option value="true">Yes</option>
+                                        <option value="false">No</option>
+                                    </select>
+                                </div>
+                                <div id="bookFormError" class="alert alert-error" style="display: none;"></div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button type="submit" class="btn btn-primary">Save Book</button>
+                                    <button type="button" class="btn btn-secondary" data-action="hideBookForm">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function bindShell() {
+            const root = document.getElementById('pageContent');
+
+            root.addEventListener('click', (e) => {
+                const tab = e.target.closest('[data-tab]');
+                if (tab) { switchTab(tab.dataset.tab, true); return; }
+
+                const el = e.target.closest('[data-action]');
+                if (!el) return;
+                const { action, id, title, page } = el.dataset;
+                switch (action) {
+                    case 'showBookForm': showBookForm(); break;
+                    case 'hideBookForm': hideBookForm(); break;
+                    case 'editBook': editBook(id); break;
+                    case 'deleteBook': deleteBook(id, title); break;
+                    case 'goPage': loadCatalog(parseInt(page, 10)); break;
+                    case 'importBook': importBook(id); break;
+                    case 'retryOpenLibrary': searchOpenLibrary(); break;
+                }
+            });
+
+            // catalog search: Enter, button, and a short debounce while typing
+            const catalogInput = document.getElementById('catalogSearch');
+            let debounce;
+            catalogInput.addEventListener('input', () => {
+                document.getElementById('catalogClearBtn').hidden = !catalogInput.value;
+                clearTimeout(debounce);
+                debounce = setTimeout(searchCatalog, 350);
+            });
+            catalogInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); clearTimeout(debounce); searchCatalog(); }
+            });
+            document.getElementById('catalogSearchBtn').addEventListener('click', searchCatalog);
+            document.getElementById('catalogClearBtn').addEventListener('click', () => {
+                catalogInput.value = '';
+                document.getElementById('catalogClearBtn').hidden = true;
+                searchCatalog();
+                catalogInput.focus();
+            });
+
+            const importInput = document.getElementById('importQuery');
+            importInput.addEventListener('input', () => {
+                document.getElementById('importClearBtn').hidden = !importInput.value;
+            });
+            importInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); searchOpenLibrary(); }
+            });
+            document.getElementById('importSearchBtn').addEventListener('click', () => searchOpenLibrary());
+            document.getElementById('importClearBtn').addEventListener('click', clearOpenLibrary);
+
+            document.getElementById('bookForm').addEventListener('submit', saveBook);
+            renderOpenLibrary();
+        }
+
+        function switchTab(tab, updateHash) {
+            state.tab = tab;
+            for (const name of ['catalog', 'openlibrary']) {
+                const active = name === tab;
+                const btn = document.getElementById(`tab-${name}`);
+                btn.classList.toggle('active', active);
+                btn.setAttribute('aria-selected', String(active));
+                document.getElementById(`panel-${name}`).hidden = !active;
+            }
+            if (updateHash) history.replaceState(null, '', tab === 'openlibrary' ? '#openlibrary' : '#catalog');
+            if (tab === 'catalog' && state.catalog.dirty) loadCatalog(state.catalog.page);
+            const focusId = tab === 'catalog' ? 'catalogSearch' : 'importQuery';
+            if (updateHash) document.getElementById(focusId)?.focus();
+        }
+
+        // ---- shared helpers --------------------------------------------------
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
+
+        function coverHtml(url, title, extra = '') {
+            const initial = escapeHtml((title || '?').trim().charAt(0).toUpperCase() || '?');
+            const valid = url && /^https?:\/\//i.test(url);
+            return `<div class="cover"><span aria-hidden="true">${initial}</span>${valid
+                ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" onerror="this.remove()">`
+                : ''}${extra}</div>`;
+        }
+
+        // ---- imported books tab ------------------------------------------------
+        async function loadCatalog(page = 1) {
+            state.catalog.page = page;
+            state.catalog.dirty = false;
+            const results = document.getElementById('catalogResults');
+            results.innerHTML = '<div class="book-grid">' + '<div class="skeleton" style="aspect-ratio:2/3;height:auto"></div>'.repeat(6) + '</div>';
 
             try {
-                const searchParam = currentCatalogSearch ? `&search=${encodeURIComponent(currentCatalogSearch)}` : '';
-                const data = await api.get(`/api/books?page=${page}&pageSize=20${searchParam}`);
+                const searchParam = state.catalog.search ? `&search=${encodeURIComponent(state.catalog.search)}` : '';
+                const data = await api.get(`/api/books?page=${page}&pageSize=24${searchParam}`);
                 const books = data.items || data.Items || [];
-                const totalCount = data.totalCount || data.TotalCount || 0;
-                const pageSize = data.pageSize || data.PageSize || 20;
+                const total = data.totalCount ?? data.TotalCount ?? 0;
                 const pageNum = data.page || data.Page || 1;
                 const totalPages = data.totalPages || data.TotalPages || 1;
 
-                let html = `
-                    <div class="card">
-                        <div class="card-header">
-                            <h2>Books (${totalCount})</h2>
-                            <button class="btn btn-primary" data-action="showBookForm">Add Book</button>
-                        </div>
-
-                        <div class="card" style="margin-bottom: 1rem;">
-                            <div class="card-header">
-                                <h3>Search existing books</h3>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0.5rem;">
-                                <label for="catalogSearch">Search catalog</label>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <input type="text" id="catalogSearch" placeholder="Search by title or author" style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: 0.875rem;">
-                                    <button class="btn btn-primary" id="catalogSearchBtn" data-action="searchCatalog">Search</button>
-                                    <button class="btn btn-secondary" id="catalogClearBtn" data-action="clearCatalogSearch">Clear</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="bookModal" class="modal">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h3 id="formTitle">Add New Book</h3>
-                                    <button class="modal-close" data-action="hideBookForm" aria-label="Close">&times;</button>
-                                </div>
-                                <div class="modal-body">
-                                    <form id="bookForm">
-                                        <input type="hidden" id="bookId">
-                                        <div class="form-group">
-                                            <label>Title <span style="color: var(--danger);">*</span></label>
-                                            <input type="text" id="bookTitle" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Author <span style="color: var(--danger);">*</span></label>
-                                            <input type="text" id="bookAuthor" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Description</label>
-                                            <textarea id="bookDescription" rows="3"></textarea>
-                                        </div>
-                                        <div class="form-group">
-                                            <label>ISBN</label>
-                                            <input type="text" id="bookISBN">
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Publication Year</label>
-                                            <input type="number" id="bookPublicationYear" min="1000" max="9999">
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Cover Image URL</label>
-                                            <input type="url" id="bookCoverImageUrl">
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Is Active</label>
-                                            <select id="bookIsActive">
-                                                <option value="true">Yes</option>
-                                                <option value="false">No</option>
-                                            </select>
-                                        </div>
-                                        <div id="bookFormError" class="alert alert-error" style="display: none;"></div>
-                                        <div style="display: flex; gap: 0.5rem;">
-                                            <button type="submit" class="btn btn-primary">Save Book</button>
-                                            <button type="button" class="btn btn-secondary" data-action="hideBookForm">Cancel</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Import from Open Library -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h2>Import from Open Library</h2>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 1rem;">
-                                <label for="importQuery">Search Open Library</label>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <input type="text" id="importQuery" placeholder="Enter book title, author, or ISBN" style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: 0.875rem;">
-                                    <button class="btn btn-primary" id="importSearchBtn" data-action="searchOpenLibrary">Search</button>
-                                    <button class="btn btn-secondary" id="importClearBtn" data-action="clearOpenLibrarySearch">Clear</button>
-                                </div>
-                                <div id="importError" class="alert alert-error" style="display: none; margin-top: 0.5rem;"></div>
-                                <div style="margin-top: 0.5rem;">
-                                    <button class="btn btn-secondary btn-sm" data-action="retryOpenLibrarySearch" style="display: none;">Retry</button>
-                                </div>
-                            </div>
-
-                            <div id="importResults" style="margin-top: 1rem;">
-                                ${importCandidates.length === 0 ? '<p class="empty-state">Search for books to import from Open Library.</p>' : renderImportCandidates(importCandidates)}
-                            </div>
-
-                            <div id="importMessage" style="margin-top: 1rem;"></div>
-                        </div>
-
-                        <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Title</th>
-                                    <th>Author</th>
-                                    <th>Rating</th>
-                                    <th>Reviews</th>
-                                    <th>Active</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
+                if (!state.catalog.search) {
+                    state.catalog.total = total;
+                    document.getElementById('catalogCount').textContent = total;
+                }
+                document.getElementById('catalogSummary').textContent = state.catalog.search
+                    ? `${total} ${total === 1 ? 'match' : 'matches'} for “${state.catalog.search}”`
+                    : `${total} ${total === 1 ? 'book' : 'books'} in your catalog`;
 
                 if (books.length === 0) {
-                    html += '<tr><td colspan="6" class="empty-state">No books found</td></tr>';
-                } else {
-                    for (const book of books) {
-                        const id = book.id || book.Id;
-                        html += `
-                            <tr>
-                                <td>${escapeHtml(book.title || book.Title || '')}</td>
-                                <td>${escapeHtml(book.author || book.Author || '')}</td>
-                                <td>${book.averageRating || book.AverageRating || 0}</td>
-                                <td>${book.reviewCount || book.ReviewCount || 0}</td>
-                                <td>${book.isActive !== false ? 'Yes' : 'No'}</td>
-                                <td>
-                                    <button class="btn btn-sm btn-secondary" data-action="editBook" data-id="${id}">Edit</button>
-                                    <button class="btn btn-sm btn-danger" data-action="deleteBook" data-id="${id}" data-title="${escapeHtml(book.title || book.Title || '')}">Delete</button>
-                                </td>
-                            </tr>
-                        `;
-                    }
+                    results.innerHTML = state.catalog.search
+                        ? `<div class="empty-state card"><strong>No imported books match “${escapeHtml(state.catalog.search)}”</strong>Try another title or author, or look for it on the Open Library tab.
+                            <div style="margin-top:1rem"><button class="btn btn-primary btn-sm" data-tab="openlibrary">Search Open Library</button></div></div>`
+                        : `<div class="empty-state card"><strong>Your catalog is empty</strong>Import books from Open Library, or add one manually.
+                            <div style="margin-top:1rem"><button class="btn btn-primary btn-sm" data-tab="openlibrary">Search Open Library</button></div></div>`;
+                    return;
                 }
 
-                html += `
-                            </tbody>
-                        </table>
-                        </div>
-
-                        <div class="pagination">
-                            ${pageNum > 1 ? `<button data-action="prevPage" data-page="${pageNum - 1}">Previous</button>` : '<button disabled>Previous</button>'}
-                            <span>Page ${pageNum} of ${totalPages}</span>
-                            ${pageNum < totalPages ? `<button data-action="nextPage" data-page="${pageNum + 1}">Next</button>` : '<button disabled>Next</button>'}
-                        </div>
-                    </div>
-                `;
-
-                content.innerHTML = html;
-                attachBookListeners(content);
-            } catch (error) {
-                content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
-            }
-        }
-
-        function attachBookListeners(content) {
-            // Book form
-            content.querySelectorAll('[data-action="showBookForm"]').forEach(b => {
-                b.addEventListener('click', showBookForm);
-            });
-            content.querySelectorAll('[data-action="hideBookForm"]').forEach(b => {
-                b.addEventListener('click', hideBookForm);
-            });
-            const form = content.querySelector('#bookForm');
-            if (form) {
-                form.addEventListener('submit', saveBook);
-            }
-
-            // Book actions
-            content.querySelectorAll('[data-action="editBook"]').forEach(b => {
-                b.addEventListener('click', () => editBook(b.dataset.id));
-            });
-            content.querySelectorAll('[data-action="deleteBook"]').forEach(b => {
-                b.addEventListener('click', () => deleteBook(b.dataset.id, b.dataset.title));
-            });
-
-            // Pagination
-            content.querySelectorAll('[data-action="prevPage"]').forEach(b => {
-                b.addEventListener('click', () => loadBooks(parseInt(b.dataset.page)));
-            });
-            content.querySelectorAll('[data-action="nextPage"]').forEach(b => {
-                b.addEventListener('click', () => loadBooks(parseInt(b.dataset.page)));
-            });
-
-            // Import search
-            content.querySelectorAll('[data-action="searchOpenLibrary"]').forEach(b => {
-                b.addEventListener('click', () => searchOpenLibrary());
-            });
-            content.querySelectorAll('[data-action="clearOpenLibrarySearch"]').forEach(b => {
-                b.addEventListener('click', clearOpenLibrarySearch);
-            });
-            content.querySelectorAll('[data-action="retryOpenLibrarySearch"]').forEach(b => {
-                b.addEventListener('click', () => searchOpenLibrary(true));
-            });
-
-            const importQueryInput = content.querySelector('#importQuery');
-            if (importQueryInput) {
-                importQueryInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        searchOpenLibrary();
-                    }
-                });
-            }
-            content.querySelectorAll('[data-action="searchCatalog"]').forEach(b => {
-                b.addEventListener('click', searchCatalog);
-            });
-            content.querySelectorAll('[data-action="clearCatalogSearch"]').forEach(b => {
-                b.addEventListener('click', clearCatalogSearch);
-            });
-
-            // Import book buttons
-            content.querySelectorAll('[data-action="importBook"]').forEach(b => {
-                b.addEventListener('click', () => importBook(b.dataset.id));
-            });
-        }
-
-        function renderImportCandidates(candidates, state = 'success') {
-            if (state === 'empty') {
-                return '<p class="empty-state">No Open Library results found.</p>';
-            }
-            if (state === 'error') {
-                return '<p class="empty-state">Open Library search failed. Use Retry to try again.</p>';
-            }
-            if (!Array.isArray(candidates) || candidates.length === 0) {
-                return '<p class="empty-state">No Open Library results found.</p>';
-            }
-
-            let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">';
-            for (const candidate of candidates) {
-                const coverUrl = candidate.coverImageUrl || '';
-                const isValidUrl = !!(coverUrl && coverUrl.indexOf('http') === 0);
-                const title = escapeHtml(candidate.title || '');
-                const authors = candidate.authors && candidate.authors.length ? candidate.authors.join(', ') : 'Unknown author';
-                const pubDate = candidate.publicationDate || candidate.publicationYear || 'Unknown date';
-                const isbn = candidate.isbn13 || candidate.isbn10 || 'Not available';
-                const description = candidate.description ? escapeHtml(candidate.description).substring(0, 150) + (candidate.description.length > 150 ? '...' : '') : 'No description available';
-                const openLibraryId = escapeHtml(candidate.openLibraryId || '');
-
-                html += `
-                    <article class="google-card">
-                        ${isValidUrl ? `<img class="google-cover" src="${escapeHtml(coverUrl)}" alt="${title}">` : `<div class="google-cover-placeholder">No cover</div>`}
-                        <div class="google-meta">
-                            <h4>${title}</h4>
-                            <p>By ${escapeHtml(authors)}</p>
-                            <p>${escapeHtml(pubDate)}</p>
-                            <p>ISBN: ${escapeHtml(isbn)}</p>
-                            <p>${description}</p>
-                            <div class="google-actions">
-                                <button class="btn btn-primary btn-sm" data-action="importBook" data-id="${openLibraryId}" ${importingIds.has(candidate.openLibraryId) ? 'disabled' : ''}>${importingIds.has(candidate.openLibraryId) ? 'Importing...' : 'Import Book'}</button>
+                let html = '<div class="book-grid">';
+                for (const book of books) {
+                    const id = book.id || book.Id;
+                    const title = book.title || book.Title || '';
+                    const author = book.author || book.Author || '';
+                    const rating = Number(book.averageRating ?? book.AverageRating ?? 0);
+                    const reviews = book.reviewCount ?? book.ReviewCount ?? 0;
+                    const active = (book.isActive ?? book.IsActive) !== false;
+                    const cover = book.coverImageUrl || book.CoverImageUrl || '';
+                    html += `
+                        <article class="book-card">
+                            ${coverHtml(cover, title, active ? '' : '<span class="flag">Hidden</span>')}
+                            <h3 title="${escapeHtml(title)}">${escapeHtml(title)}</h3>
+                            <div class="author">${escapeHtml(author || 'Unknown author')}</div>
+                            <div class="meta"><span style="color:var(--color-accent)">★</span> ${rating ? rating.toFixed(1) : '–'} <span>· ${reviews} ${reviews === 1 ? 'review' : 'reviews'}</span></div>
+                            <div class="actions">
+                                <button class="btn btn-sm btn-secondary" data-action="editBook" data-id="${id}">Edit</button>
+                                <button class="btn btn-sm btn-ghost" data-action="deleteBook" data-id="${id}" data-title="${escapeHtml(title)}" style="color:var(--danger)">Remove</button>
                             </div>
-                        </div>
-                    </article>
-                `;
+                        </article>`;
+                }
+                html += '</div>';
+
+                if (totalPages > 1) {
+                    html += `
+                        <div class="pagination">
+                            <button ${pageNum <= 1 ? 'disabled' : ''} data-action="goPage" data-page="${pageNum - 1}">Previous</button>
+                            <span>Page ${pageNum} of ${totalPages}</span>
+                            <button ${pageNum >= totalPages ? 'disabled' : ''} data-action="goPage" data-page="${pageNum + 1}">Next</button>
+                        </div>`;
+                }
+                results.innerHTML = html;
+            } catch (error) {
+                results.innerHTML = `<div class="alert alert-error">Could not load books: ${escapeHtml(error.message)}</div>`;
             }
-            html += '</div>';
-            return html;
         }
 
-        async function searchCatalog() {
-            const input = document.getElementById('catalogSearch');
-            const q = input ? input.value.trim() : '';
-            currentCatalogSearch = q;
-            currentCatalogPage = 1;
-            await loadBooks(1);
+        function searchCatalog() {
+            const q = document.getElementById('catalogSearch').value.trim();
+            if (q === state.catalog.search && state.catalog.page === 1 && document.getElementById('catalogResults').children.length) {
+                return;
+            }
+            state.catalog.search = q;
+            loadCatalog(1);
         }
 
-        async function clearCatalogSearch() {
-            const input = document.getElementById('catalogSearch');
-            if (input) input.value = '';
-            currentCatalogSearch = '';
-            currentCatalogPage = 1;
-            await loadBooks(1);
+        // ---- open library tab ----------------------------------------------------
+        function renderOpenLibrary() {
+            const el = document.getElementById('importResults');
+            const { status, candidates } = state.ol;
+
+            if (status === 'idle') {
+                el.innerHTML = `<div class="empty-state card"><strong>Search Open Library</strong>Results will appear here. Books you import are added to the Imported Books tab.</div>`;
+            } else if (status === 'loading') {
+                el.innerHTML = '<div class="result-list">' + '<div class="skeleton"></div>'.repeat(3) + '</div>';
+            } else if (status === 'error') {
+                el.innerHTML = `<div class="empty-state card"><strong>The search did not finish</strong>
+                    <div style="margin-top:1rem"><button class="btn btn-secondary btn-sm" data-action="retryOpenLibrary">Try again</button></div></div>`;
+            } else if (!candidates.length) {
+                el.innerHTML = `<div class="empty-state card"><strong>No Open Library results</strong>Check the spelling, or try the author or ISBN instead.</div>`;
+            } else {
+                el.innerHTML = `<div class="toolbar"><span class="result-count">${candidates.length} ${candidates.length === 1 ? 'result' : 'results'} from Open Library</span></div>
+                    <div class="result-list">${candidates.map(candidateHtml).join('')}</div>`;
+            }
         }
 
-        async function searchOpenLibrary(force = false) {
-            const queryInput = document.getElementById('importQuery');
-            const query = queryInput ? queryInput.value.trim() : '';
-            const errorDiv = document.getElementById('importError');
-            const resultsDiv = document.getElementById('importResults');
-            const searchBtn = document.getElementById('importSearchBtn');
+        function candidateHtml(c) {
+            const title = c.title || '';
+            const authors = c.authors && c.authors.length ? c.authors.join(', ') : 'Unknown author';
+            const year = c.publicationYear || (c.publicationDate ? String(c.publicationDate).slice(0, 4) : '');
+            const isbn = c.isbn13 || c.isbn10 || '';
+            const desc = c.description ? (c.description.length > 220 ? c.description.slice(0, 220) + '…' : c.description) : '';
+            const id = c.openLibraryId || '';
+            const busy = state.ol.importing.has(id);
+            return `
+                <article class="result-card">
+                    ${coverHtml(c.coverImageUrl, title)}
+                    <div>
+                        <h3>${escapeHtml(title)}</h3>
+                        <div class="byline">${escapeHtml(authors)}</div>
+                        <div class="chips">
+                            ${year ? `<span class="chip">${escapeHtml(year)}</span>` : ''}
+                            ${isbn ? `<span class="chip">ISBN ${escapeHtml(isbn)}</span>` : ''}
+                        </div>
+                        ${desc ? `<p class="desc">${escapeHtml(desc)}</p>` : ''}
+                    </div>
+                    <div class="action-col">
+                        <button class="btn btn-primary" data-action="importBook" data-id="${escapeHtml(id)}" ${busy ? 'disabled' : ''}>${busy ? 'Importing…' : 'Import'}</button>
+                    </div>
+                </article>`;
+        }
+
+        async function searchOpenLibrary() {
+            const input = document.getElementById('importQuery');
+            const query = input.value.trim();
+            const msg = document.getElementById('importMessage');
+            const btn = document.getElementById('importSearchBtn');
 
             if (!query) {
-                if (errorDiv) {
-                    errorDiv.textContent = 'Please enter a search query.';
-                    errorDiv.style.display = 'block';
-                }
+                msg.innerHTML = '<div class="alert alert-warning">Enter a title, author or ISBN to search.</div>';
                 return;
             }
 
-            if (isOpenLibrarySearching && !force) return;
-            const requestId = ++openLibrarySearchRequestId;
-            isOpenLibrarySearching = true;
-            openLibrarySearchState = 'loading';
-            importCandidates = [];
-            if (errorDiv) { errorDiv.style.display = 'none'; errorDiv.textContent = ''; }
-            if (resultsDiv) resultsDiv.innerHTML = '<div class="loading">Searching Open Library...</div>';
-            if (searchBtn) { searchBtn.disabled = true; searchBtn.textContent = 'Searching...'; }
+            const requestId = ++state.ol.requestId;
+            state.ol.query = query;
+            state.ol.status = 'loading';
+            state.ol.candidates = [];
+            msg.innerHTML = '';
+            btn.disabled = true;
+            btn.textContent = 'Searching…';
+            renderOpenLibrary();
 
             try {
                 const result = await api.get(`/api/admin/books/search?q=${encodeURIComponent(query)}&pageSize=20`);
-                if (requestId !== openLibrarySearchRequestId) return;
-                importCandidates = Array.isArray(result) ? result : [];
-                openLibrarySearchState = importCandidates.length === 0 ? 'empty' : 'success';
-                if (resultsDiv) resultsDiv.innerHTML = renderImportCandidates(importCandidates, openLibrarySearchState);
-                const content = document.getElementById('pageContent');
-                if (content) attachBookListeners(content);
-                const retryBtn = document.querySelector('[data-action="retryOpenLibrarySearch"]');
-                if (retryBtn) retryBtn.style.display = 'none';
+                if (requestId !== state.ol.requestId) return;
+                state.ol.candidates = Array.isArray(result) ? result : [];
+                state.ol.status = state.ol.candidates.length ? 'success' : 'empty';
             } catch (error) {
-                if (requestId !== openLibrarySearchRequestId) return;
-                openLibrarySearchState = 'error';
-                importCandidates = [];
-                if (errorDiv) {
-                    errorDiv.textContent = error.status === 401 || error.status === 403
-                        ? 'Access denied. Admin privileges required.'
-                        : (error.status === 429 ? 'Open Library rate limit exceeded. Please try again later.'
-                            : (error.status === 504 ? 'Open Library request timed out. Please try again.'
-                                : (error.message || 'Open Library search failed. Please try again.')));
-                    errorDiv.style.display = 'block';
-                }
-                const retryBtn = document.querySelector('[data-action="retryOpenLibrarySearch"]');
-                if (retryBtn) retryBtn.style.display = 'inline-block';
-                if (resultsDiv) resultsDiv.innerHTML = renderImportCandidates([], 'error');
+                if (requestId !== state.ol.requestId) return;
+                state.ol.status = 'error';
+                msg.innerHTML = `<div class="alert alert-error">${escapeHtml(
+                    error.status === 401 || error.status === 403 ? 'Access denied. Admin privileges required.'
+                    : error.status === 429 ? 'Open Library rate limit exceeded. Please try again later.'
+                    : error.status === 504 ? 'Open Library request timed out. Please try again.'
+                    : (error.message || 'Open Library search failed. Please try again.'))}</div>`;
             } finally {
-                if (requestId === openLibrarySearchRequestId) {
-                    isOpenLibrarySearching = false;
-                    if (searchBtn) { searchBtn.disabled = false; searchBtn.textContent = 'Search'; }
+                if (requestId === state.ol.requestId) {
+                    btn.disabled = false;
+                    btn.textContent = 'Search';
+                    renderOpenLibrary();
                 }
             }
         }
 
-        function clearOpenLibrarySearch() {
-            const queryInput = document.getElementById('importQuery');
-            const errorDiv = document.getElementById('importError');
-            const resultsDiv = document.getElementById('importResults');
-            if (queryInput) queryInput.value = '';
-            if (errorDiv) { errorDiv.style.display = 'none'; errorDiv.textContent = ''; }
-            importCandidates = [];
-            openLibrarySearchState = 'idle';
-            const retryBtn = document.querySelector('[data-action="retryOpenLibrarySearch"]');
-            if (retryBtn) retryBtn.style.display = 'none';
-            if (resultsDiv) resultsDiv.innerHTML = '<p class="empty-state">Search for books to import from Open Library.</p>';
+        function clearOpenLibrary() {
+            state.ol.requestId++;
+            state.ol.candidates = [];
+            state.ol.status = 'idle';
+            document.getElementById('importQuery').value = '';
+            document.getElementById('importClearBtn').hidden = true;
+            document.getElementById('importMessage').innerHTML = '';
+            const btn = document.getElementById('importSearchBtn');
+            btn.disabled = false;
+            btn.textContent = 'Search';
+            renderOpenLibrary();
         }
 
         async function importBook(openLibraryId) {
-            if (isImporting || importingIds.has(openLibraryId)) return;
-            isImporting = true;
-            importingIds.add(openLibraryId);
-
-            const messageDiv = document.getElementById('importMessage');
-            const resultsDiv = document.getElementById('importResults');
-            if (messageDiv) messageDiv.innerHTML = '';
-            if (resultsDiv) resultsDiv.innerHTML = renderImportCandidates(importCandidates, openLibrarySearchState);
-            const content = document.getElementById('pageContent');
-            if (content) attachBookListeners(content);
+            if (!openLibraryId || state.ol.importing.has(openLibraryId)) return;
+            state.ol.importing.add(openLibraryId);
+            const msg = document.getElementById('importMessage');
+            msg.innerHTML = '';
+            renderOpenLibrary();
 
             try {
                 const result = await api.post('/api/admin/books/import', { openLibraryId });
-
                 if (result.isNewImport) {
-                    if (messageDiv) messageDiv.innerHTML = `<div class="alert alert-success">Successfully imported "${escapeHtml(result.title)}" by ${escapeHtml(result.author)}.</div>`;
+                    msg.innerHTML = `<div class="alert alert-success">Imported “${escapeHtml(result.title)}” by ${escapeHtml(result.author)}. Find it under Imported Books.</div>`;
                 } else if (result.existingIsbnMatch) {
-                    if (messageDiv) messageDiv.innerHTML = `<div class="alert alert-info">"${escapeHtml(result.title)}" already exists in the catalog (ISBN: ${escapeHtml(result.existingIsbnMatch)}).</div>`;
+                    msg.innerHTML = `<div class="alert alert-info">“${escapeHtml(result.title)}” is already in the catalog (ISBN ${escapeHtml(result.existingIsbnMatch)}).</div>`;
                 } else {
-                    if (messageDiv) messageDiv.innerHTML = `<div class="alert alert-info">"${escapeHtml(result.title)}" is already imported from Open Library.</div>`;
+                    msg.innerHTML = `<div class="alert alert-info">“${escapeHtml(result.title)}” is already imported.</div>`;
                 }
-                importCandidates = importCandidates.filter(c => c.openLibraryId !== openLibraryId);
-                if (resultsDiv) resultsDiv.innerHTML = renderImportCandidates(importCandidates, openLibrarySearchState);
-                const content = document.getElementById('pageContent');
-                if (content) attachBookListeners(content);
-                await loadBooks(currentCatalogPage);
+                state.ol.candidates = state.ol.candidates.filter(c => c.openLibraryId !== openLibraryId);
+                if (!state.ol.candidates.length) state.ol.status = 'empty';
+                state.catalog.dirty = true;
+                if (result.isNewImport && state.catalog.total != null) {
+                    state.catalog.total += 1;
+                    document.getElementById('catalogCount').textContent = state.catalog.total;
+                }
             } catch (error) {
-                if (messageDiv) messageDiv.innerHTML = `<div class="alert alert-error">Import failed: ${error.message || 'Unknown error'}</div>`;
+                msg.innerHTML = `<div class="alert alert-error">Import failed: ${escapeHtml(error.message || 'Unknown error')}</div>`;
             } finally {
-                importingIds.delete(openLibraryId);
-                isImporting = false;
-                const latestResultsDiv = document.getElementById('importResults');
-                if (latestResultsDiv) latestResultsDiv.innerHTML = renderImportCandidates(importCandidates, openLibrarySearchState);
-                const content = document.getElementById('pageContent');
-                if (content) attachBookListeners(content);
+                state.ol.importing.delete(openLibraryId);
+                renderOpenLibrary();
             }
         }
 
-function showBookForm() {
-            editingBookId = null;
-            document.getElementById('bookId').value = '';
+        // ---- add / edit / remove ---------------------------------------------
+        function showBookForm() {
+            state.editingBookId = null;
             document.getElementById('formTitle').textContent = 'Add New Book';
             document.getElementById('bookForm').reset();
             document.getElementById('bookIsActive').value = 'true';
             const err = document.getElementById('bookFormError');
-            if (err) { err.style.display = 'none'; err.textContent = ''; }
-            const modal = document.getElementById('bookModal');
-            if (modal) modal.classList.add('active');
+            err.style.display = 'none';
+            err.textContent = '';
+            document.getElementById('bookModal').classList.add('active');
+            document.getElementById('bookTitle').focus();
         }
 
         function hideBookForm() {
-            const modal = document.getElementById('bookModal');
-            if (modal) modal.classList.remove('active');
+            document.getElementById('bookModal')?.classList.remove('active');
         }
 
         async function saveBook(e) {
             e.preventDefault();
+            const year = document.getElementById('bookPublicationYear').value;
             const bookData = {
                 title: document.getElementById('bookTitle').value,
                 author: document.getElementById('bookAuthor').value,
                 description: document.getElementById('bookDescription').value || null,
                 isbn: document.getElementById('bookISBN').value || null,
-                publicationYear: document.getElementById('bookPublicationYear').value ? parseInt(document.getElementById('bookPublicationYear').value) : null,
+                publicationYear: year ? parseInt(year, 10) : null,
                 coverImageUrl: document.getElementById('bookCoverImageUrl').value || null,
                 isActive: document.getElementById('bookIsActive').value === 'true'
             };
             const err = document.getElementById('bookFormError');
-            if (err) { err.style.display = 'none'; err.textContent = ''; }
+            err.style.display = 'none';
+            err.textContent = '';
 
             try {
-                if (editingBookId) {
-                    await api.put(`/api/admin/books/${editingBookId}`, bookData);
+                if (state.editingBookId) {
+                    await api.put(`/api/admin/books/${state.editingBookId}`, bookData);
                 } else {
                     await api.post('/api/admin/books', bookData);
                 }
                 hideBookForm();
-                loadBooks(1);
+                loadCatalog(state.editingBookId ? state.catalog.page : 1);
             } catch (error) {
-                if (err) {
-                    err.textContent = error.message || 'Error saving book';
-                    err.style.display = 'block';
-                } else {
-                    alert('Error saving book: ' + error.message);
-                }
+                err.textContent = error.message || 'Error saving book';
+                err.style.display = 'block';
             }
         }
 
         async function editBook(id) {
             try {
-                const data = await api.get(`/api/books/${id}`);
-                const book = data;
-                editingBookId = id;
+                const book = await api.get(`/api/books/${id}`);
+                state.editingBookId = id;
                 document.getElementById('formTitle').textContent = 'Edit Book';
-                document.getElementById('bookId').value = id;
                 document.getElementById('bookTitle').value = book.title || book.Title || '';
                 document.getElementById('bookAuthor').value = book.author || book.Author || '';
                 document.getElementById('bookDescription').value = book.description || book.Description || '';
@@ -546,30 +501,23 @@ function showBookForm() {
                 document.getElementById('bookCoverImageUrl').value = book.coverImageUrl || book.CoverImageUrl || '';
                 document.getElementById('bookIsActive').value = (book.isActive !== false && book.IsActive !== false) ? 'true' : 'false';
                 const err = document.getElementById('bookFormError');
-                if (err) { err.style.display = 'none'; err.textContent = ''; }
-                const modal = document.getElementById('bookModal');
-                if (modal) modal.classList.add('active');
+                err.style.display = 'none';
+                err.textContent = '';
+                document.getElementById('bookModal').classList.add('active');
             } catch (error) {
                 alert('Error loading book: ' + error.message);
             }
         }
 
         async function deleteBook(id, title) {
-            if (!confirm(`Are you sure you want to deactivate "${title}"?`)) return;
+            if (!confirm(`Remove "${title}" from the catalog? It will be deactivated, not erased.`)) return;
             try {
                 await api.delete(`/api/admin/books/${id}`);
-                loadBooks(1);
+                loadCatalog(state.catalog.page);
             } catch (error) {
-                alert('Error deleting book: ' + error.message);
+                alert('Error removing book: ' + error.message);
             }
         }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text || '';
-            return div.innerHTML;
-        }
-
-</script>
+    </script>
 </body>
 </html>
