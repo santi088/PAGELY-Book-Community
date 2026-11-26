@@ -26,7 +26,20 @@ public class SuspendedUserAccessTests : IClassFixture<WebApplicationFactory<Prog
 
         var registerResponse = await client.PostAsJsonAsync("/api/auth/register", new { email, password });
         registerResponse.EnsureSuccessStatusCode();
-        var auth = await registerResponse.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+
+        // Verify email using Identity workflow
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByEmailAsync(email);
+            Assert.NotNull(user);
+            var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user!);
+            await userManager.ConfirmEmailAsync(user!, confirmToken);
+        }
+
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
+        loginResponse.EnsureSuccessStatusCode();
+        var auth = await loginResponse.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         var token = auth!["token"].ToString()!;
 
         var booksResponse = await client.GetAsync("/api/books?page=1&pageSize=1");

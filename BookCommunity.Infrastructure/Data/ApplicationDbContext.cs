@@ -17,6 +17,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ReviewLike> ReviewLikes { get; set; }
     public DbSet<ReadingListEntry> ReadingListEntries { get; set; }
     public DbSet<Report> Reports { get; set; }
+    public DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
     
     protected override void OnModelCreating(ModelBuilder builder)
     {

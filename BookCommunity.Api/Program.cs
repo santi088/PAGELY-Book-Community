@@ -7,6 +7,24 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+
+// Load .env if present (local dev)
+var envPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+if (File.Exists(envPath))
+{
+    foreach (var line in File.ReadAllLines(envPath))
+    {
+        var t = line.Trim();
+        if (string.IsNullOrEmpty(t) || t.StartsWith("#")) continue;
+        var idx = t.IndexOf('=');
+        if (idx <= 0) continue;
+        var key = t.Substring(0, idx).Trim();
+        var val = t.Substring(idx + 1).Trim();
+        Environment.SetEnvironmentVariable(key, val);
+    }
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -94,11 +112,23 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("resend", o =>
+    {
+        o.Window = TimeSpan.FromMinutes(1);
+        o.PermitLimit = 3;
+        o.QueueLimit = 0;
+    });
+});
+
 // Health checks
 builder.Services.AddHealthChecks();
 
 // Register services
 builder.Services.AddScoped<BookCommunity.Api.Services.TokenService>();
+builder.Services.AddScoped<BookCommunity.Api.Services.IEmailVerificationService, BookCommunity.Api.Services.EmailVerificationService>();
+builder.Services.AddScoped<BookCommunity.Api.Services.IEmailService, BookCommunity.Api.Services.EmailService>();
 
 // Open Library search service
 builder.Services.AddHttpClient<BookCommunity.Api.Services.IOpenLibraryService, BookCommunity.Api.Services.OpenLibraryService>(
@@ -133,6 +163,7 @@ app.UseCors("DevCors");
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 
