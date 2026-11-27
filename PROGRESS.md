@@ -14,6 +14,7 @@
 ## Reports page
 - Toolbar inserted (search, reason filter, sort) but filtering/sorting logic missing.
 - Book column added.
+- FIXED: temporal dead zone bug - currentState declared before loadReports() call.
 
 ## Per tab status
 - Reports: DONE - toolbar wired (search debounced, reason filter, sort: recent/oldest/reason/reviewer/book, reset), pagination, View modal shows Book title, filter state persists across modal open/close.
@@ -21,6 +22,12 @@
 - Users: TODO - search/filter/sort/paging not implemented.
 - Genres: TODO - search/sort not implemented.
 - Books: TODO - genre filter/sort not implemented.
+
+## Files served (admin-web static server on :8080)
+- admin-web/pages/*.html - served directly (no build step)
+- admin-web/js/*.js - ES modules loaded by HTML pages
+- admin-web/css/styles.css - stylesheet
+- API runs on :5242 (CORS allows localhost:8080)
 
 ## Real lists found
 - Report reasons: hardcoded in admin-web (Misinformation, Inappropriate Content, Spam); no backend enum.
@@ -33,4 +40,5 @@
 - Debounce search input (300ms) to avoid excessive API calls.
 - PagedResult<T> shape: { items, page, pageSize, totalCount, totalPages }.
 - Sort values must match backend switch: recent/oldest/reason/reviewer/book.
+- Admin user seeded from Admin__Email/Admin__Password env vars (default admin@bookcommunity.local / admin123).
 git add PROGRESS.md && git commit -m "docs: add admin search/filter progress" && echo done

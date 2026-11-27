@@ -15,14 +15,6 @@
         import { renderLayout, initLayout } from '../js/layout.js';
         import { renderToolbar, renderPagination } from '../js/components.js';
 
-        const ok = await auth.requireAdmin();
-        if (!ok) {
-        } else {
-            document.getElementById('app').innerHTML = renderLayout('Reports & Moderation', 'Review and resolve user reports.');
-            initLayout();
-            loadReports();
-        }
-
         // Filter/sort state persisted across modal opens
         let currentState = {
             search: '',
@@ -31,6 +23,14 @@
             page: 1,
             pageSize: 20
         };
+
+        const ok = await auth.requireAdmin();
+        if (!ok) {
+        } else {
+            document.getElementById('app').innerHTML = renderLayout('Reports & Moderation', 'Review and resolve user reports.');
+            initLayout();
+            loadReports();
+        }
 
         async function loadReports() {
             const content = document.getElementById('pageContent');
