@@ -576,13 +576,16 @@ var users = await _userManager.Users.ToListAsync();
         // Trends: new reviews per day (last N days)
         var newReviewsPerDay = await _context.Reviews
             .Where(r => r.CreatedAt >= cutoff)
-            .GroupBy(r => r.CreatedAt.Date)
+            .Select(r => r.CreatedAt.Date)
+            .ToListAsync();
+        var newReviewsPerDayGrouped = newReviewsPerDay
+            .GroupBy(d => d)
             .Select(g => new DailyTrendDto { Date = g.Key.ToString("yyyy-MM-dd"), Count = g.Count() })
             .OrderBy(g => g.Date)
-            .ToListAsync();
+            .ToList();
 
         // Trends: new users per day (ApplicationUser has CreatedAt)
-        var newUsersPerDay = allUsers
+        var newUsersPerDayGrouped = allUsers
             .Where(u => u.CreatedAt >= cutoff)
             .GroupBy(u => u.CreatedAt.Date)
             .Select(g => new DailyTrendDto { Date = g.Key.ToString("yyyy-MM-dd"), Count = g.Count() })
@@ -737,8 +740,8 @@ var users = await _userManager.Users.ToListAsync();
             OldestPendingReportDays = oldestPendingReportDays,
             NewReportsLast7Days = newReportsLast7Days,
             HiddenRemovedReviewsLast7Days = hiddenRemovedReviewsLast7Days,
-            NewReviewsPerDay = newReviewsPerDay.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
-            NewUsersPerDay = newUsersPerDay.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
+            NewReviewsPerDay = newReviewsPerDayGrouped.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
+            NewUsersPerDay = newUsersPerDayGrouped.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
             ReportsByReason = reportsByReason.Select(r => new ReasonCount { Reason = r.Reason, Count = r.Count }).ToList(),
             StatusBreakdown = new ReportStatusBreakdown
             {
