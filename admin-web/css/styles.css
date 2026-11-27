@@ -1315,7 +1315,7 @@ tbody tr:last-child td {
 }
 
 .review-card.is-hidden,
-.review-card.is-deleted { background: #FBF4EA; opacity: 0.6; }
+.review-card.is-deleted { background: #FBF4EA; opacity: 1; }
 .review-card.is-deleted { border-bottom: 3px solid var(--color-danger); }
 .review-card.is-visible { border-bottom: 3px solid var(--color-success); }
 
