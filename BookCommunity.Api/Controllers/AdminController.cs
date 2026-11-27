@@ -40,54 +40,28 @@ public class AdminController : ControllerBase
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 100) pageSize = 20;
 
-        var usersQuery = _userManager.Users.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var searchLower = search.ToLower();
-            usersQuery = usersQuery.Where(u =>
-                (u.Email != null && u.Email.ToLower().Contains(searchLower)) ||
-                (u.FirstName != null && u.FirstName.ToLower().Contains(searchLower)) ||
-                (u.LastName != null && u.LastName.ToLower().Contains(searchLower)));
-        }
-
-        if (!string.IsNullOrWhiteSpace(role))
-        {
-            // Filter by role: need to load roles for each user, do it in memory after materializing
-            // but for paging we need to be careful. We'll filter after getting roles.
-        }
-
-        if (suspended.HasValue)
-        {
-            usersQuery = usersQuery.Where(u => u.IsSuspended == suspended.Value);
-        }
-
-        // Sorting (applied before role filtering which happens in memory)
-        usersQuery = sort?.ToLower() switch
-        {
-            "name" => usersQuery.OrderBy(u => u.Email),
-            "namedesc" => usersQuery.OrderByDescending(u => u.Email),
-            "email" => usersQuery.OrderBy(u => u.Email),
-            "emaildesc" => usersQuery.OrderByDescending(u => u.Email),
-            "newest" => usersQuery.OrderByDescending(u => u.CreatedAt),
-            "oldest" => usersQuery.OrderBy(u => u.CreatedAt),
-            _ => usersQuery.OrderBy(u => u.Email)
-        };
-
-        var totalCount = await usersQuery.CountAsync();
-        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-        var users = await usersQuery
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+var users = await _userManager.Users.ToListAsync();
 
         var result = new List<UserDto>();
         foreach (var user in users)
         {
             var roles = await _userManager.GetRolesAsync(user);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.ToLower();
+                if (!((user.Email != null && user.Email.ToLower().Contains(searchLower)) ||
+                      (user.FirstName != null && user.FirstName.ToLower().Contains(searchLower)) ||
+                      (user.LastName != null && user.LastName.ToLower().Contains(searchLower))))
+                    continue;
+            }
+
             if (!string.IsNullOrWhiteSpace(role) && !roles.Contains(role))
                 continue;
+
+            if (suspended.HasValue && user.IsSuspended != suspended.Value)
+                continue;
+
             result.Add(new UserDto
             {
                 Id = user.Id,
@@ -99,23 +73,35 @@ public class AdminController : ControllerBase
             });
         }
 
-        // Adjust totalCount if role filtering removed some items
-        if (!string.IsNullOrWhiteSpace(role))
+        result = sort?.ToLower() switch
         {
-            totalCount = result.Count;
-            totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-        }
+            "name" => result.OrderBy(u => u.Email).ToList(),
+            "namedesc" => result.OrderByDescending(u => u.Email).ToList(),
+            "email" => result.OrderBy(u => u.Email).ToList(),
+            "emaildesc" => result.OrderByDescending(u => u.Email).ToList(),
+            "newest" => result.OrderByDescending(u => u.Id).ToList(),
+            "oldest" => result.OrderBy(u => u.Id).ToList(),
+            _ => result.OrderBy(u => u.Email).ToList()
+        };
+
+        var totalCount = result.Count;
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var paged = result
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
 
         return Ok(new PagedResult<UserDto>
         {
-            Items = result,
+            Items = paged,
             Page = page,
             PageSize = pageSize,
             TotalCount = totalCount,
             TotalPages = totalPages
         });
     }
-    
+
     [HttpPut("users/{id}/suspend")]
     public async Task<IActionResult> SuspendUser(string id)
     {
