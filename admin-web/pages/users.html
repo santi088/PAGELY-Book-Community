@@ -19,6 +19,7 @@
         let store = null;
         let currentUserId = null;
         let currentUserEmail = '';
+        let roles = [];
 
         const ok = await auth.requireAdmin();
         if (!ok) {
@@ -33,7 +34,6 @@
             currentUserEmail = (auth.currentUser?.email || auth.currentUser?.Email || '').toLowerCase();
 
             // Load roles for the role filter (real source from DB)
-            let roles = [];
             try {
                 const rolesResp = await api.get('/api/admin/roles');
                 roles = Array.isArray(rolesResp) ? rolesResp : [];
