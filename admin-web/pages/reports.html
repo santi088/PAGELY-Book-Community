@@ -14,21 +14,29 @@
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
         import { renderToolbar, renderPagination } from '../js/components.js';
+        import { createListStore, bindListToolbar } from '../js/list-utils.js';
 
-        // Filter/sort state persisted across modal opens
-        let currentState = {
-            search: '',
-            reason: '',
-            sort: 'recent',
-            page: 1,
-            pageSize: 20
-        };
+        // Filter/sort state persisted across modal opens (shared store)
+        let store = null;
 
         const ok = await auth.requireAdmin();
         if (!ok) {
         } else {
             document.getElementById('app').innerHTML = renderLayout('Reports & Moderation', 'Review and resolve user reports.');
             initLayout();
+
+            store = createListStore({
+                search: '',
+                filters: { reason: '' },
+                sort: 'recent',
+                page: 1,
+                pageSize: 20
+            });
+
+            store.subscribe(() => {
+                loadReports();
+            });
+
             loadReports();
         }
 
@@ -37,18 +45,15 @@
             content.innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                const params = new URLSearchParams();
-                if (currentState.search) params.set('search', currentState.search);
-                if (currentState.reason) params.set('reason', currentState.reason);
-                if (currentState.sort && currentState.sort !== 'recent') params.set('sort', currentState.sort);
-                params.set('page', currentState.page.toString());
-                params.set('pageSize', currentState.pageSize.toString());
+                const params = store.toParams();
 
                 const result = await api.get(`/api/admin/reports?${params.toString()}`);
                 const reportList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
                 const totalCount = result.totalCount ?? reportList.length;
                 const totalPages = result.totalPages ?? 1;
                 const page = result.page ?? 1;
+
+                const s = store.get();
 
                 let html = `
                     <div class="card">
@@ -57,7 +62,7 @@
                         </div>
                         ${renderToolbar({ 
                             searchPlaceholder: 'Search reports...', 
-                            searchValue: currentState.search,
+                            searchValue: s.search,
                             filters: [{ 
                                 key: 'reason', 
                                 options: [
@@ -66,7 +71,7 @@
                                     { value: 'Inappropriate Content', label: 'Inappropriate Content' },
                                     { value: 'Spam', label: 'Spam' }
                                 ],
-                                value: currentState.reason
+                                value: s.filters.reason || ''
                             }], 
                             sortOptions: [
                                 { value: 'recent', label: 'Most recent' },
@@ -75,7 +80,7 @@
                                 { value: 'reviewer', label: 'Reviewer A-Z' },
                                 { value: 'book', label: 'Book title A-Z' }
                             ],
-                            sortValue: currentState.sort
+                            sortValue: s.sort
                         })}
                         <div class="table-wrap">
                             <table>
@@ -130,7 +135,7 @@
                             </table>
                         </div>
                     </div>
-                    ${renderPagination(page, currentState.pageSize, totalCount)}
+                    ${renderPagination(page, s.pageSize, totalCount)}
 
                     <div id="reportModal" class="modal">
                         <div class="modal-content modal-sm">
@@ -145,47 +150,15 @@
 
                 content.innerHTML = html;
 
-                // Wire toolbar events
-                const searchInput = content.querySelector('.toolbar-search');
-                const reasonFilter = content.querySelector('.toolbar-filter[data-key="reason"]');
-                const sortSelect = content.querySelector('.toolbar-sort');
-                const resetBtn = content.querySelector('.toolbar-reset');
-
-                if (searchInput) {
-                    searchInput.addEventListener('input', debounce(() => {
-                        currentState.search = searchInput.value;
-                        currentState.page = 1;
-                        loadReports();
-                    }, 300));
-                }
-                if (reasonFilter) {
-                    reasonFilter.addEventListener('change', () => {
-                        currentState.reason = reasonFilter.value;
-                        currentState.page = 1;
-                        loadReports();
-                    });
-                }
-                if (sortSelect) {
-                    sortSelect.addEventListener('change', () => {
-                        currentState.sort = sortSelect.value;
-                        currentState.page = 1;
-                        loadReports();
-                    });
-                }
-                if (resetBtn) {
-                    resetBtn.addEventListener('click', () => {
-                        currentState = { search: '', reason: '', sort: 'recent', page: 1, pageSize: 20 };
-                        loadReports();
-                    });
-                }
-
-                // Pagination
-                content.querySelectorAll('.pg-prev').forEach(b => b.addEventListener('click', () => {
-                    if (currentState.page > 1) { currentState.page--; loadReports(); }
-                }));
-                content.querySelectorAll('.pg-next').forEach(b => b.addEventListener('click', () => {
-                    if (currentState.page < totalPages) { currentState.page++; loadReports(); }
-                }));
+                // Wire toolbar events via shared module (debounce 300ms, state persists)
+                bindListToolbar('#pageContent', store, {
+                    onSearch: (v) => store.setSearch(v),
+                    onFilter: (key, v) => store.setFilter(key, v),
+                    onSort: (v) => store.setSort(v),
+                    onReset: () => store.reset(),
+                    onPrev: () => store.setPage(store.get().page - 1),
+                    onNext: () => store.setPage(store.get().page + 1)
+                });
 
                 // Action buttons
                 const reportMap = new Map(reportList.map(r => [String(r.id || r.Id), r]));
@@ -213,14 +186,6 @@
             } catch (error) {
                 content.innerHTML = `<div class="alert alert-error">Error: ${escapeHtml(error.message)}</div>`;
             }
-        }
-
-        function debounce(fn, ms) {
-            let timer;
-            return (...args) => {
-                clearTimeout(timer);
-                timer = setTimeout(() => fn(...args), ms);
-            };
         }
 
         async function moderateReport(id, action) {

@@ -21,6 +21,7 @@ public class BooksController : ControllerBase
     public async Task<ActionResult<PagedResult<BookDto>>> GetBooks(
         [FromQuery] string? search,
         [FromQuery] string? genre,
+        [FromQuery] bool? isActive,
         [FromQuery] string? sortBy = "title",
         [FromQuery] string? sortOrder = "asc",
         [FromQuery] int page = 1,
@@ -32,8 +33,12 @@ public class BooksController : ControllerBase
         var query = _context.Books
             .Include(b => b.BookGenres)
             .ThenInclude(bg => bg.Genre)
-            .Where(b => b.IsActive)
             .AsQueryable();
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(b => b.IsActive == isActive.Value);
+        }
         
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -60,6 +65,7 @@ public class BooksController : ControllerBase
             "title" => sortOrder?.ToLower() == "desc" ? query.OrderByDescending(b => b.Title) : query.OrderBy(b => b.Title),
             "author" => sortOrder?.ToLower() == "desc" ? query.OrderByDescending(b => b.Author) : query.OrderBy(b => b.Author),
             "rating" => sortOrder?.ToLower() == "desc" ? query.OrderByDescending(b => b.AverageRating).ThenBy(b => b.Title) : query.OrderBy(b => b.AverageRating).ThenBy(b => b.Title),
+            "reviewcount" => sortOrder?.ToLower() == "desc" ? query.OrderByDescending(b => b.ReviewCount).ThenBy(b => b.Title) : query.OrderBy(b => b.ReviewCount).ThenBy(b => b.Title),
             "created" => sortOrder?.ToLower() == "desc" ? query.OrderByDescending(b => b.CreatedAt) : query.OrderBy(b => b.CreatedAt),
             _ => query.OrderBy(b => b.Title)
         };

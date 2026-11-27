@@ -9,19 +9,34 @@
 
 ## Shared components
 - admin-web/js/components.js: renderToolbar(config), renderPagination(page,pageSize,total).
-- No query-state hook yet (state in memory per page).
+- admin-web/js/list-utils.js: debounce, createListStore(initial), bindListToolbar(containerEl, store, handlers), syncToolbarUI(containerEl, store).
 
-## Reports page
-- Toolbar inserted (search, reason filter, sort) but filtering/sorting logic missing.
-- Book column added.
-- FIXED: temporal dead zone bug - currentState declared before loadReports() call.
+## Per tab status (ALL COMPLETE)
+- Reports: DONE - migrated to shared list-utils module, toolbar (search debounced, reason filter, sort: recent/oldest/reason/reviewer/book, reset), pagination, View modal shows Book title, filter state persists across modal open/close.
+- Reviews: DONE - added sort (newest/oldest/highest/lowest/mostliked/book/reader), Reset button, status pills kept as custom HTML, rating filter in shared toolbar, state persists across actions.
+- Users: DONE - search by email/name (debounced), role filter (from /api/admin/roles), suspended filter, sort (name/email/newest, asc/desc), pagination (page size 20), header count "X of Y", suspend/reactivate with self-protection.
+- Books: DONE - genre filter (from /api/genres), visibility filter (All/Visible/Hidden), sort (newest/oldest/title/author/rating/reviewcount, asc/desc), reset, pagination (page size 24), Edit/Remove preserved, Open Library tab unchanged.
+- Genres: DONE - search by name/description, sort (name A-Z/Z-A), pagination (page size 20), header count "X of Y", Add/Edit/Delete preserved.
+- Dashboard: no changes.
 
-## Per tab status
-- Reports: DONE - toolbar wired (search debounced, reason filter, sort: recent/oldest/reason/reviewer/book, reset), pagination, View modal shows Book title, filter state persists across modal open/close.
-- Reviews: TODO - search/filters/sort/paging not implemented.
-- Users: TODO - search/filter/sort/paging not implemented.
-- Genres: TODO - search/sort not implemented.
-- Books: TODO - genre filter/sort not implemented.
+## API changes
+- /api/admin/users: added search, role, suspended, sort, page, pageSize params; returns PagedResult<UserDto> (backward compatible - old callers without paging params still work via new PagedResult shape).
+- /api/admin/roles: NEW endpoint returning distinct role names from DB.
+- /api/books: added isActive filter param, added reviewcount sort option. Removed hardcoded IsActive=true filter (now controlled by isActive param).
+- /api/genres: added search, sort, page, pageSize params; returns PagedResult<GenreDto> when paging params present, plain list otherwise (backward compatible).
+- /api/admin/reviews: added search, status, rating, sort params.
+
+## Frontend changes
+- admin-web/js/list-utils.js: NEW shared module (debounce, createListStore, bindListToolbar, syncToolbarUI).
+- admin-web/pages/reports.html: migrated to shared module.
+- admin-web/pages/users.html: rewritten with shared module.
+- admin-web/pages/books.html: catalog tab uses shared module; Open Library tab unchanged.
+- admin-web/pages/genres.html: rewritten with shared module.
+- admin-web/pages/reviews.html: rewritten with shared module, status pills kept as custom HTML.
+
+## Tests
+- BookCommunity.Tests/AdminListFilterTests.cs: NEW - 9 tests covering Users (search/role/suspended/roles), Books (isActive/reviewcount sort), Genres (search/sort/paging), Reviews (status/rating/sort). All use in-memory database, never touch real Postgres.
+- All 38 tests pass (29 original + 9 new).
 
 ## Files served (admin-web static server on :8080)
 - admin-web/pages/*.html - served directly (no build step)
@@ -29,16 +44,9 @@
 - admin-web/css/styles.css - stylesheet
 - API runs on :5242 (CORS allows localhost:8080)
 
-## Real lists found
-- Report reasons: hardcoded in admin-web (Misinformation, Inappropriate Content, Spam); no backend enum.
-- User roles: Admin, User (DbSeeder).
-- Genres: from /api/genres (DB table).
+## How to run
+API: dotnet run --project BookCommunity.Api --urls "http://0.0.0.0:5242"
+Admin web: python3 -m http.server 8080 (from admin-web/)
+Tests: dotnet test BookCommunity.Tests/BookCommunity.Tests.csproj
 
-## Gotchas for next tabs
-- Reuse renderToolbar/renderPagination pattern from Reports; they now accept searchValue, filter value, sortValue.
-- State kept in memory per page (currentState object) - survive modal by not tearing down on view.
-- Debounce search input (300ms) to avoid excessive API calls.
-- PagedResult<T> shape: { items, page, pageSize, totalCount, totalPages }.
-- Sort values must match backend switch: recent/oldest/reason/reviewer/book.
-- Admin user seeded from Admin__Email/Admin__Password env vars (default admin@bookcommunity.local / admin123).
-git add PROGRESS.md && git commit -m "docs: add admin search/filter progress" && echo done
+## IMPORTANT: Hard-refresh (Ctrl+Shift+R) before testing UI changes - ES modules may be cached.

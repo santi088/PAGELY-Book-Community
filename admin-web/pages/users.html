@@ -13,24 +13,41 @@
         import { auth } from '../js/auth.js';
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
+        import { renderToolbar, renderPagination } from '../js/components.js';
+        import { createListStore, bindListToolbar } from '../js/list-utils.js';
+
+        let store = null;
+        let currentUserId = null;
+        let currentUserEmail = '';
 
         const ok = await auth.requireAdmin();
         if (!ok) {
         } else {
             document.getElementById('app').innerHTML = renderLayout('Users', 'Manage account access and suspension.');
             initLayout();
-            if (!window.__adminEscapeBound) {
-                window.__adminEscapeBound = true;
-                document.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') {
-                        document.querySelectorAll('.modal.active').forEach((modal) => modal.classList.remove('active'));
-                    }
-                });
-            }
-            // Ensure current user is loaded
+
             if (!auth.currentUser) {
                 try { await auth.loadCurrentUser(); } catch (e) { /* ignore */ }
             }
+            currentUserId = auth.currentUser?.id || auth.currentUser?.Id;
+            currentUserEmail = (auth.currentUser?.email || auth.currentUser?.Email || '').toLowerCase();
+
+            // Load roles for the role filter (real source from DB)
+            const rolesResp = await api.get('/api/admin/roles');
+            const roles = Array.isArray(rolesResp) ? rolesResp : [];
+
+            store = createListStore({
+                search: '',
+                filters: { role: '', suspended: '' },
+                sort: 'name',
+                page: 1,
+                pageSize: 20
+            });
+
+            store.subscribe(() => {
+                loadUsers();
+            });
+
             loadUsers();
         }
 
@@ -39,43 +56,82 @@
             content.innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                const users = await api.get('/api/admin/users');
-                const userList = Array.isArray(users) ? users : [];
+                const params = store.toParams();
+                const result = await api.get(`/api/admin/users?${params.toString()}`);
+                const userList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
+                const totalCount = result.totalCount ?? userList.length;
+                const totalPages = result.totalPages ?? 1;
+                const page = result.page ?? 1;
+
+                const s = store.get();
 
                 let html = `
                     <div class="card">
                         <div class="card-header">
-                            <h2>Users (${userList.length})</h2>
+                            <h2>Users (${userList.length} of ${totalCount})</h2>
                         </div>
+                        ${renderToolbar({ 
+                            searchPlaceholder: 'Search users by email or name...', 
+                            searchValue: s.search,
+                            filters: [
+                                { 
+                                    key: 'role', 
+                                    options: [
+                                        { value: '', label: 'All roles' },
+                                        ...roles.map(r => ({ value: r, label: r }))
+                                    ],
+                                    value: s.filters.role || ''
+                                },
+                                { 
+                                    key: 'suspended', 
+                                    options: [
+                                        { value: '', label: 'All' },
+                                        { value: 'true', label: 'Yes' },
+                                        { value: 'false', label: 'No' }
+                                    ],
+                                    value: s.filters.suspended || ''
+                                }
+                            ], 
+                            sortOptions: [
+                                { value: 'name', label: 'Name A-Z' },
+                                { value: 'namedesc', label: 'Name Z-A' },
+                                { value: 'email', label: 'Email A-Z' },
+                                { value: 'emaildesc', label: 'Email Z-A' },
+                                { value: 'newest', label: 'Newest' },
+                                { value: 'oldest', label: 'Oldest' }
+                            ],
+                            sortValue: s.sort
+                        })}
                         <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Email</th>
-                                    <th>Name</th>
-                                    <th>Roles</th>
-                                    <th>Suspended</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Email</th>
+                                        <th>Name</th>
+                                        <th>Roles</th>
+                                        <th>Suspended</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                 `;
 
                 if (userList.length === 0) {
-                    html += '<tr><td colspan="5" class="empty-state">No users found</td></tr>';
+                    html += '<tr><td colspan="5" class="empty-state">No users match your filters</td></tr>';
                 } else {
-                    const currentEmail = (auth.currentUser?.email || auth.currentUser?.Email || '').toLowerCase();
-                    const currentId = auth.currentUser?.id || auth.currentUser?.Id;
                     for (const user of userList) {
                         const id = user.id || user.Id;
                         const roles = Array.isArray(user.roles || user.Roles) ? (user.roles || user.Roles).join(', ') : '';
                         const suspended = user.isSuspended || user.IsSuspended;
                         const email = user.email || user.Email || '';
-                        const isSelf = (currentId && currentId === id) || (currentEmail && currentEmail === email.toLowerCase());
+                        const isSelf = (currentUserId && currentUserId === id) || (currentUserEmail && currentUserEmail === email.toLowerCase());
+                        const firstName = user.firstName || user.FirstName || '';
+                        const lastName = user.lastName || user.LastName || '';
+                        const name = (firstName + ' ' + lastName).trim() || '—';
                         html += `
                             <tr>
                                 <td>${escapeHtml(email)}</td>
-                                <td>${escapeHtml((user.firstName || user.FirstName || '') + ' ' + (user.lastName || user.LastName || ''))}</td>
+                                <td>${escapeHtml(name)}</td>
                                 <td>${escapeHtml(roles)}</td>
                                 <td>${suspended ? 'Yes' : 'No'}</td>
                                 <td>
@@ -90,32 +146,40 @@
                 }
 
                 html += `
-                            </tbody>
-                        </table>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
+                    ${renderPagination(page, s.pageSize, totalCount)}
                 `;
 
                 content.innerHTML = html;
-                attachUserListeners(content);
-            } catch (error) {
-                content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
-            }
-        }
 
-        function attachUserListeners(content) {
-            content.querySelectorAll('[data-action="suspendUser"]').forEach(b => {
-                b.addEventListener('click', () => suspendUser(b.dataset.id, b.dataset.email));
-            });
-            content.querySelectorAll('[data-action="reactivateUser"]').forEach(b => {
-                b.addEventListener('click', () => reactivateUser(b.dataset.id, b.dataset.email));
-            });
+                // Wire toolbar events via shared module (debounce 300ms, state persists)
+                bindListToolbar('#pageContent', store, {
+                    onSearch: (v) => store.setSearch(v),
+                    onFilter: (key, v) => store.setFilter(key, v),
+                    onSort: (v) => store.setSort(v),
+                    onReset: () => store.reset(),
+                    onPrev: () => store.setPage(store.get().page - 1),
+                    onNext: () => store.setPage(store.get().page + 1)
+                });
+
+                // Action buttons
+                content.querySelectorAll('[data-action="suspendUser"]').forEach(b => {
+                    b.addEventListener('click', () => suspendUser(b.dataset.id, b.dataset.email));
+                });
+                content.querySelectorAll('[data-action="reactivateUser"]').forEach(b => {
+                    b.addEventListener('click', () => reactivateUser(b.dataset.id, b.dataset.email));
+                });
+            } catch (error) {
+                content.innerHTML = `<div class="alert alert-error">Error: ${escapeHtml(error.message)}</div>`;
+            }
         }
 
         async function suspendUser(id, email) {
             if (!confirm(`Suspend user "${email}"?`)) return;
             try {
-                // Prevent self-suspension if we know current user
                 const currentEmail = auth.currentUser?.email || auth.currentUser?.Email;
                 const currentId = auth.currentUser?.id || auth.currentUser?.Id;
                 if ((currentId && currentId === id) || (currentEmail && currentEmail.toLowerCase() === email.toLowerCase())) {

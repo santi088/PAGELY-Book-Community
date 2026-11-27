@@ -60,12 +60,17 @@
         import { auth } from '../js/auth.js';
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
+        import { renderToolbar, renderPagination } from '../js/components.js';
+        import { createListStore, bindListToolbar } from '../js/list-utils.js';
+
+        let store = null;
 
         const ok = await auth.requireAdmin();
         if (!ok) {
         } else {
             document.getElementById('app').innerHTML = renderLayout('Genres', 'Manage catalog categories.');
             initLayout();
+
             if (!window.__adminEscapeBound) {
                 window.__adminEscapeBound = true;
                 document.addEventListener('keydown', (e) => {
@@ -74,6 +79,19 @@
                     }
                 });
             }
+
+            store = createListStore({
+                search: '',
+                filters: {},
+                sort: 'name',
+                page: 1,
+                pageSize: 20
+            });
+
+            store.subscribe(() => {
+                loadGenres();
+            });
+
             loadGenres();
         }
 
@@ -84,15 +102,23 @@
             content.innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                const genres = await api.get('/api/genres');
-                const genreList = Array.isArray(genres) ? genres : [];
+                const params = store.toParams();
+                const result = await api.get(`/api/genres?${params.toString()}`);
+                const genreList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
+                const totalCount = result.totalCount ?? genreList.length;
+                const totalPages = result.totalPages ?? 1;
+                const page = result.page ?? 1;
+
+                const s = store.get();
 
                 let html = `
                     <div class="card">
                         <div class="card-header">
-                            <h2>Genres (${genreList.length})</h2>
+                            <h2>Genres (${genreList.length} of ${totalCount})</h2>
                             <button class="btn btn-primary" data-action="showGenreForm">Add Genre</button>
                         </div>
+
+                        <div id="genreToolbar"></div>
 
                         <div id="genreModal" class="modal">
                             <div class="modal-content">
@@ -134,7 +160,7 @@
                 `;
 
                 if (genreList.length === 0) {
-                    html += '<tr><td colspan="3" class="empty-state">No genres found</td></tr>';
+                    html += '<tr><td colspan="3" class="empty-state">No genres match your filters</td></tr>';
                 } else {
                     for (const genre of genreList) {
                         const id = genre.id || genre.Id;
@@ -156,40 +182,52 @@
                         </table>
                         </div>
                     </div>
+                    ${renderPagination(page, s.pageSize, totalCount)}
                 `;
 
                 content.innerHTML = html;
-                attachGenreListeners(content);
+
+                // Wire toolbar events via shared module (debounce 300ms, state persists)
+                bindListToolbar('#genreToolbar', store, {
+                    onSearch: (v) => store.setSearch(v),
+                    onFilter: (key, v) => store.setFilter(key, v),
+                    onSort: (v) => store.setSort(v),
+                    onReset: () => store.reset(),
+                    onPrev: () => store.setPage(store.get().page - 1),
+                    onNext: () => store.setPage(store.get().page + 1)
+                });
+
+                // Bind pagination events
+                const pagerEl = content.querySelector('#genreToolbar + *') || content;
+                pagerEl.querySelectorAll('.pg-prev').forEach(b => b.addEventListener('click', () => {
+                    store.setPage(store.get().page - 1);
+                }));
+                pagerEl.querySelectorAll('.pg-next').forEach(b => b.addEventListener('click', () => {
+                    store.setPage(store.get().page + 1);
+                }));
+
+                // Genre form
+                const form = content.querySelector('#genreForm');
+                if (form) {
+                    form.addEventListener('submit', saveGenre);
+                }
+                const modal = content.querySelector('#genreModal');
+                if (modal) {
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) hideGenreForm();
+                    });
+                }
+
+                // Genre actions
+                content.querySelectorAll('[data-action="editGenre"]').forEach(b => {
+                    b.addEventListener('click', () => editGenre(b.dataset.id));
+                });
+                content.querySelectorAll('[data-action="deleteGenre"]').forEach(b => {
+                    b.addEventListener('click', () => deleteGenre(b.dataset.id, b.dataset.title));
+                });
             } catch (error) {
                 content.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
             }
-        }
-
-        function attachGenreListeners(content) {
-            // Genre form
-            content.querySelectorAll('[data-action="showGenreForm"]').forEach(b => {
-                b.addEventListener('click', showGenreForm);
-            });
-            content.querySelectorAll('[data-action="hideGenreForm"]').forEach(b => {
-                b.addEventListener('click', hideGenreForm);
-            });
-            const form = content.querySelector('#genreForm');
-            if (form) {
-                form.addEventListener('submit', saveGenre);
-            }
-            const modal = content.querySelector('#genreModal');
-            if (modal) {
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) hideGenreForm();
-                });
-            }
-            // Genre actions
-            content.querySelectorAll('[data-action="editGenre"]').forEach(b => {
-                b.addEventListener('click', () => editGenre(b.dataset.id));
-            });
-            content.querySelectorAll('[data-action="deleteGenre"]').forEach(b => {
-                b.addEventListener('click', () => deleteGenre(b.dataset.id, b.dataset.title));
-            });
         }
 
         function showGenreForm() {
@@ -236,10 +274,10 @@
         }
 
         async function editGenre(id) {
-            // GET /api/genres returns all genres; find the one we want
             try {
-                const genres = await api.get('/api/genres');
-                const genreList = Array.isArray(genres) ? genres : [];
+                const params = store.toParams();
+                const result = await api.get(`/api/genres?${params.toString()}`);
+                const genreList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
                 const genre = genreList.find(g => (g.id || g.Id) === id);
                 if (!genre) throw new Error('Genre not found');
 
