@@ -200,7 +200,7 @@
 
                         <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start;">
                             <!-- Books per genre bar chart -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Books per genre</h3>
                                 <div class="bar-chart" id="barChartBooksPerGenre">${renderBarChart(d.booksPerGenre)}</div>
                                 ${d.booksPerGenre.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No genre data</div>' : ''}
@@ -208,28 +208,28 @@
                             </div>
 
                             <!-- Top 5 most reviewed -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reviewed</h3>
                                 <div class="top-list" id="topReviewed">${renderTopList(d.top5MostReviewed, 'reviews')}</div>
                                 ${d.top5MostReviewed.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reviewed books</div>' : ''}
                             </div>
 
                             <!-- Top 5 highest rated -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 highest rated</h3>
                                 <div class="top-list" id="topRated">${renderTopRatedList(d.top5HighestRated)}</div>
                                 ${d.top5HighestRated.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${d.minReviewsForHighestRated ?? 3}+ visible reviews)</div>` : ''}
                             </div>
 
                             <!-- Top 5 most saved -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most saved</h3>
                                 <div class="top-list" id="topSaved">${renderTopList(d.top5MostSaved, 'saves')}</div>
                                 ${d.top5MostSaved.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reading list entries</div>' : ''}
                             </div>
 
                             <!-- Missing cover/description -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Missing cover or description</h3>
                                 <div class="stat-card-inner">
                                     <h3 style="font-size: 2rem; margin: 0;">${d.booksMissingCoverOrDescription}</h3>
@@ -251,12 +251,12 @@
                             <p class="section-description">Most reported books and reviewers.</p>
                         </div>
                         <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start;">
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reported books</h3>
                                 <div class="top-list" id="topReportedBooks">${renderReportedList(d.top5MostReportedBooks, 'reports')}</div>
                                 ${d.top5MostReportedBooks.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${d.minReportsForMostReportedBooks ?? 2}+ reports)</div>` : ''}
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reported reviewers</h3>
                                 <div class="top-list" id="topReportedReviewers">${renderReportedList(d.top5MostReportedReviewers, 'reports')}</div>
                                 ${d.top5MostReportedReviewers.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${d.minReportsForMostReportedReviewers ?? 2}+ reports)</div>` : ''}
