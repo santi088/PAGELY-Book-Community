@@ -976,7 +976,7 @@ var users = await _userManager.Users.ToListAsync();
             var startDate = new DateTime(year, month, range.Start);
             var endDate = new DateTime(year, month, endDay);
 
-            var label = $"Week {weekIndex + 1}\n{startDate:MMM d}-{endDay}";
+            var label = (weekIndex + 1).ToString();
             if (weekIndex == 4 && daysInMonth <= 28)
                 break;
 

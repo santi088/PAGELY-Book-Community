@@ -71,7 +71,7 @@
                 const s = store.get();
 
                 let html = `
-                    <div class="card">
+                    <div class="card-depth">
                         <div class="card-header">
                             <h2>Users (${totalCount})</h2>
                             ${totalCount > 0 ? `<span style="color: var(--text-light); font-size: 0.9rem; margin-left: 0.5rem;">Showing ${((page - 1) * s.pageSize) + 1}–${Math.min(page * s.pageSize, totalCount)}</span>` : ''}

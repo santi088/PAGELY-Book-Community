@@ -10,9 +10,9 @@
     <div id="app"></div>
 
     <script type="module">
-        import { auth } from '../js/auth.js?v=8';
-        import { api } from '../js/api.js?v=8';
-        import { renderLayout, initLayout, updateSidebarUserInfo } from '../js/layout.js?v=8';
+        import { auth } from '../js/auth.js?v=9';
+        import { api } from '../js/api.js?v=9';
+        import { renderLayout, initLayout, updateSidebarUserInfo } from '../js/layout.js?v=9';
 
         let dashboard = null;
         let selYear = new Date().getFullYear();
@@ -91,7 +91,7 @@
             return `
                 <div class="section">
                     <!-- A. Needs Attention -->
-                    <div class="card dashboard-card">
+                    <div class="card-depth">
                         <div class="card-header">
                             <h2>Needs Attention</h2>
                             <p class="section-description">Pending reports: moderate today?</p>
@@ -105,11 +105,11 @@
                                 </p>
                                 ${d.oldestPendingReportDays > 3 ? '<span class="badge badge-warning">Over 3 days old</span>' : ''}
                             </div>
-                            <div class="stat-card" data-nav="reports.html?sort=newest" style="cursor:pointer;">
+                            <div class="stat-card card-depth" data-nav="reports.html?sort=newest" style="cursor:pointer;">
                                 <h3>${d.newReportsLast7Days}</h3>
                                 <p>New reports (7 days)${newReportsCompare ? `<br><span class="compare-text">${newReportsCompare}</span>` : ''}</p>
                             </div>
-                            <div class="stat-card" data-nav="reviews.html?status=hidden" style="cursor:pointer;">
+                            <div class="stat-card card-depth" data-nav="reviews.html?status=hidden" style="cursor:pointer;">
                                 <h3>${d.hiddenRemovedReviewsLast7Days}</h3>
                                 <p>Hidden/removed reviews (7 days)${hiddenCompare ? `<br><span class="compare-text">${hiddenCompare}</span>` : ''}</p>
                             </div>
@@ -117,25 +117,25 @@
                     </div>
 
                     <!-- E. Context strip -->
-                    <div class="card dashboard-card">
+                    <div class="card-depth">
                         <div class="card-header">
                             <h2>Catalog at a glance</h2>
                             <p class="section-description">Visible vs hidden, user health, review volume.</p>
                         </div>
                         <div class="grid">
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3>${d.visibleBooks}</h3>
                                 <p>Visible books${d.hiddenBooks > 0 ? ` &bull; ${d.hiddenBooks} hidden` : ''}</p>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3>${d.totalGenres}</h3>
                                 <p>Genres</p>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3>${d.activeUsers}</h3>
                                 <p>Active users${d.suspendedUsers > 0 ? ` &bull; ${d.suspendedUsers} suspended` : ''}</p>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3>${d.visibleReviews}</h3>
                                 <p>Visible reviews</p>
                             </div>
@@ -143,7 +143,7 @@
                     </div>
 
                     <!-- B. Trends -->
-                    <div class="card dashboard-card">
+                    <div class="card-depth">
                         <div class="card-header">
                             <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;">
                                 <div>
@@ -160,25 +160,27 @@
                         </div>
 
                         <!-- Row 1: Chart (full width) -->
-                        <div class="stat-card" style="margin-top:var(--space-4);">
+                        <div class="stat-card" style="margin-top:var(--space-4); padding-bottom:var(--space-4);">
                             <div class="chart-card" id="trendChartCard">
-                                <div class="chart-wrapper" id="chartWrapper">
+                                <div class="chart-wrapper" id="chartWrapper" style="padding-bottom:var(--space-4);">
                                     ${renderTrendChart(d.weeks, selYear, selMonth)}
                                 </div>
+                            </div>
+                        </div>
                             </div>
                         </div>
 
                         <!-- Row 2: Two equal-width cards side by side -->
                         <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:var(--space-4);">
                             <!-- Reports by reason -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Reports by reason</h3>
                                 <div class="reason-list" id="reasonList">${renderReasonList(d.reportsByReason)}</div>
                                 ${d.reportsByReason.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
                             </div>
 
                             <!-- Report resolution with percentages -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Report resolution</h3>
                                 <div class="breakdown-list" id="breakdownList">${renderBreakdown(d.statusBreakdown)}</div>
                                 ${d.statusBreakdown && d.statusBreakdown.Total === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
@@ -187,7 +189,7 @@
                     </div>
 
                     <!-- C. Catalog insights -->
-                    <div class="card dashboard-card">
+                    <div class="card-depth">
                         <div class="card-header">
                             <h2>Catalog insights</h2>
                             <p class="section-description">Books per genre, top rated/reviewed, most saved, missing cover data.</p>
@@ -195,7 +197,7 @@
 
                         <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start;">
                             <!-- Books per genre bar chart -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Books per genre</h3>
                                 <div class="bar-chart" id="barChartBooksPerGenre">${renderBarChart(d.booksPerGenre)}</div>
                                 ${d.booksPerGenre.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No genre data</div>' : ''}
@@ -203,28 +205,28 @@
                             </div>
 
                             <!-- Top 5 most reviewed -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reviewed</h3>
                                 <div class="top-list" id="topReviewed">${renderTopList(d.top5MostReviewed, 'reviews')}</div>
                                 ${d.top5MostReviewed.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reviewed books</div>' : ''}
                             </div>
 
                             <!-- Top 5 highest rated -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 highest rated</h3>
                                 <div class="top-list" id="topRated">${renderTopRatedList(d.top5HighestRated)}</div>
                                 ${d.top5HighestRated.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${d.minReviewsForHighestRated ?? 3}+ visible reviews)</div>` : ''}
                             </div>
 
                             <!-- Top 5 most saved -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most saved</h3>
                                 <div class="top-list" id="topSaved">${renderTopList(d.top5MostSaved, 'saves')}</div>
                                 ${d.top5MostSaved.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reading list entries</div>' : ''}
                             </div>
 
                             <!-- Missing cover/description -->
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Missing cover or description</h3>
                                 <div class="stat-card-inner">
                                     <h3 style="font-size: 2rem; margin: 0;">${d.booksMissingCoverOrDescription}</h3>
@@ -240,18 +242,18 @@
                     </div>
 
                     <!-- D. Moderation insights -->
-                    <div class="card dashboard-card">
+                    <div class="card-depth">
                         <div class="card-header">
                             <h2>Moderation insights</h2>
                             <p class="section-description">Most reported books and reviewers.</p>
                         </div>
                         <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start;">
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reported books</h3>
                                 <div class="top-list" id="topReportedBooks">${renderReportedList(d.top5MostReportedBooks, 'reports')}</div>
                                 ${d.top5MostReportedBooks.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${d.minReportsForMostReportedBooks ?? 2}+ reports)</div>` : ''}
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card card-depth">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reported reviewers</h3>
                                 <div class="top-list" id="topReportedReviewers">${renderReportedList(d.top5MostReportedReviewers, 'reports')}</div>
                                 ${d.top5MostReportedReviewers.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${d.minReportsForMostReportedReviewers ?? 2}+ reports)</div>` : ''}
@@ -260,7 +262,7 @@
                     </div>
 
                     <!-- Refresh bar -->
-                    <div class="card dashboard-card" style="padding:var(--space-4);">
+                    <div class="card-depth" style="padding:var(--space-4);">
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;">
                             <span class="update-label" id="updateLabel">Updated ${formatTime(lastUpdated)}</span>
                             <button class="btn btn-primary btn-sm" id="btnRefresh" type="button">Refresh</button>
@@ -411,22 +413,23 @@
             const allZero = weeks.every(w => w.newUsers === 0 && w.newReviews === 0);
             const maxVal = Math.max(...weeks.map(w => Math.max(w.newUsers, w.newReviews)), 1);
             const barH = 120;
-            const gap = 14;
-            const barW = 56;
+            const gap = 36;
+            const barW = 44;
 
             // Build SVG
             const svgW = Math.max(480, weeks.length * (barW + gap) + 100);
-            const svgH = 150;
+            const svgH = 160;
 
             let barsHtml = '';
             let labelsHtml = '';
             let hiddenTable = '<table><thead><tr><th>Week</th><th>New Users</th><th>New Reviews</th></tr></thead><tbody>';
 
+            const baseY = svgH - 30;
+
             weeks.forEach((w, i) => {
                 const x = 60 + i * (barW + gap);
                 const uH = w.newUsers === 0 ? 0 : Math.round((w.newUsers / maxVal) * barH);
                 const rH = w.newReviews === 0 ? 0 : Math.round((w.newReviews / maxVal) * barH);
-                const baseY = svgH - 30;
 
                 // Users bar (left)
                 if (uH > 0) {
@@ -446,9 +449,9 @@
                 }
 
                 // X labels (horizontal, no rotation)
-                labelsHtml += `<text x="${x + barW / 2}" y="${baseY + 18}" font-size="11" fill="#7D6757" text-anchor="middle" font-weight="600">${w.label.replace('\n', ' ')}</text>`;
+                labelsHtml += `<text x="${x + barW / 2}" y="${baseY + 18}" font-size="10" fill="#7D6757" text-anchor="middle" font-weight="600">${w.label}</text>`;
 
-                hiddenTable += `<tr><td>${w.label.replace('\n', ' ')}</td><td>${w.newUsers}</td><td>${w.newReviews}</td></tr>`;
+                hiddenTable += `<tr><td>${w.label}</td><td>${w.newUsers}</td><td>${w.newReviews}</td></tr>`;
             });
 
             hiddenTable += '</tbody></table>';
@@ -484,6 +487,8 @@
                     ${labelsHtml}
                     <!-- X axis line -->
                     <line x1="60" y1="${baseY}" x2="${svgW - 20}" y2="${baseY}" stroke="#EADFD1" stroke-width="2"/>
+                    <!-- X axis label -->
+                    <text x="${svgW / 2}" y="${baseY + 32}" font-size="11" fill="#4A2411" text-anchor="middle" font-weight="600">weeks</text>
                 </svg>
                 <div class="visually-hidden">${hiddenTable}</div>
             `;
@@ -633,7 +638,7 @@
         .bar-chart {
             display: flex;
             flex-direction: column;
-            gap: var(--space-3);
+            gap: var(--space-4);
         }
         .bar-item {
             display: flex;
