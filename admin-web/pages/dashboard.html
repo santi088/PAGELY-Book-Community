@@ -3,87 +3,463 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Book Community Admin</title>
+    <title>Dashboard - Pagely Admin</title>
     <link rel="stylesheet" href="../css/styles.css?v=20261126a">
 </head>
 <body>
     <div id="app"></div>
 
     <script type="module">
-        import { auth } from '../js/auth.js';
-        import { api } from '../js/api.js';
-        import { renderLayout, initLayout } from '../js/layout.js';
+        import { auth } from '../js/auth.js?v=5';
+        import { api } from '../js/api.js?v=5';
+        import { renderLayout, initLayout } from '../js/layout.js?v=5';
 
-        // Verify admin access before rendering dashboard
+        let dashboard = null;
+        let days = 7;
+
         const isAdmin = await auth.requireAdmin();
         if (!isAdmin) {
-            // requireAdmin already redirects or handles the error
-            // Stay on login or show error
         } else {
-            document.getElementById('app').innerHTML = renderLayout('Dashboard', 'Overview of catalog and administration activity.');
+            document.getElementById('app').innerHTML = renderLayout(
+                'Dashboard',
+                'Overview of catalog and administration activity.',
+                'DASHBOARD');
             initLayout();
+
+            if (!window.__dashboardEscapeBound) {
+                window.__dashboardEscapeBound = true;
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        const modal = document.getElementById('detailModal');
+                        if (modal) modal.classList.remove('active');
+                    }
+                });
+            }
+
             loadDashboard();
         }
 
         async function loadDashboard() {
             const content = document.getElementById('pageContent');
-            content.innerHTML = '<div class="loading">Loading...</div>';
+            content.innerHTML = `
+                <div class="loading">Loading dashboard...</div>
+            `;
 
             try {
-                const [books, genres, users] = await Promise.allSettled([
-                    api.get('/api/books?pageSize=1'),
-                    api.get('/api/genres'),
-                    api.get('/api/admin/users')
-                ]);
+                dashboard = await api.get(`/api/admin/dashboard?days=${days}`);
 
-                let statsHtml = '<div class="grid">';
-
-                if (books.status === 'fulfilled') {
-                    statsHtml += `
-                        <div class="stat-card">
-                            <h3>${books.value.totalCount || books.value.TotalCount || 0}</h3>
-                            <p>Total Books</p>
-                        </div>
-                    `;
-                }
-
-                if (genres.status === 'fulfilled') {
-                    statsHtml += `
-                        <div class="stat-card">
-                            <h3>${Array.isArray(genres.value) ? genres.value.length : 0}</h3>
-                            <p>Genres</p>
-                        </div>
-                    `;
-                }
-
-                if (users.status === 'fulfilled') {
-                    statsHtml += `
-                        <div class="stat-card">
-                            <h3>${Array.isArray(users.value) ? users.value.length : 0}</h3>
-                            <p>Users</p>
-                        </div>
-                    `;
-                }
-
-                statsHtml += '</div>';
-
-                content.innerHTML = `
-                    ${statsHtml}
-                    <div class="card">
-                        <div class="card-header">
-                            <h2>Quick Actions</h2>
-                        </div>
-                        <p style="color: var(--text-light);">Use the sidebar to manage books, genres, users, and reports.</p>
-                    </div>
-                `;
+                content.innerHTML = renderDashboard(dashboard);
+                wireDashboardEvents();
             } catch (error) {
                 if (error.status === 401 || error.status === 403) {
-                    content.innerHTML = `<div class="alert alert-error">Authorization failed: ${error.message}. Please ensure you have admin privileges.</div>`;
+                    content.innerHTML = `<div class="alert alert-error">Authorization failed. Admin privileges required.</div>`;
                 } else {
-                    content.innerHTML = `<div class="alert alert-error">Error loading dashboard: ${error.message}</div>`;
+                    content.innerHTML = `<div class="alert alert-error">Error loading dashboard: ${escapeHtml(error.message)}</div>`;
                 }
             }
         }
+
+        function renderDashboard(d) {
+            const pendingWarning = d.oldestPendingReportDays > 3 ? ' stat-card--warn' : '';
+
+            return `
+                <div class="section">
+                    <!-- A. Needs Attention -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2>Needs Attention</h2>
+                                <p class="section-description">Pending reports: moderate today?</p>
+                            </div>
+                            <div class="page-actions">
+                                <button class="btn btn-sm btn-secondary" data-action="toggleDays" data-days="${days === 7 ? 30 : 7}">
+                                    ${days === 7 ? 'Last 30 days' : 'Last 7 days'}
+                                </button>
+                                <a href="reports.html" class="btn btn-sm btn-primary">Go to Reports</a>
+                            </div>
+                        </div>
+                        <div class="grid">
+                            <div class="stat-card${pendingWarning}">
+                                <h3>${d.pendingReports}</h3>
+                                <p>Pending reports${d.oldestPendingReportDays > 0 ? ` &bull; oldest ${d.oldestPendingReportDays}d ago` : ''}</p>
+                                ${d.oldestPendingReportDays > 3 ? '<span class="badge badge-warning">Over 3 days old</span>' : ''}
+                            </div>
+                            <div class="stat-card">
+                                <h3>${d.newReportsLast7Days}</h3>
+                                <p>New reports (7 days)</p>
+                            </div>
+                            <div class="stat-card">
+                                <h3>${d.hiddenRemovedReviewsLast7Days}</h3>
+                                <p>Hidden/removed reviews (7 days)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- E. Context strip -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Catalog at a glance</h2>
+                            <p class="section-description">Visible vs hidden, user health, review volume.</p>
+                        </div>
+                        <div class="grid">
+                            <div class="stat-card">
+                                <h3>${d.visibleBooks}</h3>
+                                <p>Visible books${d.hiddenBooks > 0 ? ` &bull; ${d.hiddenBooks} hidden` : ''}</p>
+                            </div>
+                            <div class="stat-card">
+                                <h3>${d.totalGenres}</h3>
+                                <p>Genres</p>
+                            </div>
+                            <div class="stat-card">
+                                <h3>${d.activeUsers}</h3>
+                                <p>Active users${d.suspendedUsers > 0 ? ` &bull; ${d.suspendedUsers} suspended` : ''}</p>
+                            </div>
+                            <div class="stat-card">
+                                <h3>${d.visibleReviews}</h3>
+                                <p>Visible reviews</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- B. Trends -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Trends (${days} days)</h2>
+                            <p class="section-description">Review and user growth, report reasons, resolution breakdown.</p>
+                        </div>
+
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+                            <!-- New reviews per day -->
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">New reviews per day</h3>
+                                <div class="sparkline" id="sparkReviews">${renderSparkline(d.newReviewsPerDay, 'New reviews')}</div>
+                                ${d.newReviewsPerDay.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No review activity</div>' : ''}
+                            </div>
+
+                            <!-- New users per day -->
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">New users per day</h3>
+                                <div class="sparkline" id="sparkUsers">${renderSparkline(d.newUsersPerDay, 'New users')}</div>
+                                ${d.newUsersPerDay.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No user signups</div>' : ''}
+                            </div>
+
+                            <!-- Reports by reason -->
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">Reports by reason</h3>
+                                <div class="reason-list" id="reasonList">${renderReasonList(d.reportsByReason)}</div>
+                                ${d.reportsByReason.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
+                            </div>
+
+                            <!-- Status breakdown -->
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">Report resolution</h3>
+                                <div class="breakdown-list" id="breakdownList">${renderBreakdown(d.statusBreakdown)}</div>
+                                ${d.statusBreakdown.Pending === 0 && d.statusBreakdown.Dismissed === 0 && d.statusBreakdown.Resolved === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- C. Catalog insights -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Catalog insights</h2>
+                            <p class="section-description">Books per genre, top rated/reviewed, most saved, missing cover data.</p>
+                        </div>
+
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                            <!-- Books per genre bar chart -->
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">Books per genre</h3>
+                                <div class="bar-chart" id="barChartBooksPerGenre">${renderBarChart(d.booksPerGenre, 'Books')}</div>
+                                ${d.booksPerGenre.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No genre data</div>' : ''}
+                                <div class="zero-genre-list" id="zeroGenreList">${renderZeroGenres(d.genresWithZeroVisibleBooks)}</div>
+                            </div>
+
+                            <!-- Top 5 most reviewed -->
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">Top 5 most reviewed</h3>
+                                <div class="top-list" id="topReviewed">${renderTopList(d.top5MostReviewed, 'reviews')}</div>
+                                ${d.top5MostReviewed.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reviewed books</div>' : ''}
+                            </div>
+
+                            <!-- Top 5 highest rated -->
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">Top 5 highest rated</h3>
+                                <div class="top-list" id="topRated">${renderTopRatedList(d.top5HighestRated)}</div>
+                                ${d.top5HighestRated.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No rated books</div>' : ''}
+                            </div>
+
+                            <!-- Top 5 most saved -->
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">Top 5 most saved</h3>
+                                <div class="top-list" id="topSaved">${renderTopList(d.top5MostSaved, 'saves')}</div>
+                                ${d.top5MostSaved.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reading list entries</div>' : ''}
+                            </div>
+
+                            <!-- Missing cover/description -->
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">Missing cover or description</h3>
+                                <div class="stat-card-inner">
+                                    <h3 style="font-size: 2rem; margin: 0;">${d.booksMissingCoverOrDescription}</h3>
+                                    <p>visible books affected</p>
+                                </div>
+                                <div class="missing-list" id="missingList">${renderMissingList(d.booksMissingCoverOrDescriptionSample)}</div>
+                                ${d.booksMissingCoverOrDescriptionSample.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">All books have cover and description</div>' : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- D. Moderation insights -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Moderation insights</h2>
+                            <p class="section-description">Most reported books and reviewers.</p>
+                        </div>
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">Top 5 most reported books</h3>
+                                <div class="top-list" id="topReportedBooks">${renderReportedList(d.top5MostReportedBooks, 'reports')}</div>
+                                ${d.top5MostReportedBooks.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reported books</div>' : ''}
+                            </div>
+                            <div class="stat-card">
+                                <h3 style="font-size: var(--font-size-lg);">Top 5 most reported reviewers</h3>
+                                <div class="top-list" id="topReportedReviewers">${renderReportedList(d.top5MostReportedReviewers, 'reports')}</div>
+                                ${d.top5MostReportedReviewers.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reported reviewers</div>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ---------- render helpers ----------
+
+        function renderSparkline(items, label) {
+            if (!items || items.length === 0) return '';
+            const max = Math.max(...items.map(i => i.count), 1);
+            const bars = items.map(i => {
+                const h = Math.round((i.count / max) * 60);
+                return `<div class="spark-bar" style="height:${h}px;" title="${i.date}: ${i.count}">${i.count}</div>`;
+            }).join('');
+            return `
+                <div class="sparkline-wrap">
+                    ${bars}
+                    <div class="spark-labels">${items.map(i => `<span>${i.date.slice(5)}</span>`).join('')}</div>
+                </div>
+            `;
+        }
+
+        function renderReasonList(items) {
+            if (!items || items.length === 0) return '';
+            return items.map(r => `
+                <div class="reason-item">
+                    <span class="reason-name">${escapeHtml(r.reason)}</span>
+                    <span class="reason-count">${r.count}</span>
+                    <div class="reason-bar"><div class="reason-bar-fill" style="width:${r.count * 20}%"></div></div>
+                </div>
+            `).join('');
+        }
+
+        function renderBreakdown(b) {
+            const total = b.pending + b.dismissed + b.resolved;
+            if (total === 0) return '';
+            return `
+                <div class="breakdown-item"><span>Pending</span><span>${b.pending}</span></div>
+                <div class="breakdown-item"><span>Dismissed</span><span>${b.dismissed}</span></div>
+                <div class="breakdown-item"><span>Resolved</span><span>${b.resolved}</span></div>
+            `;
+        }
+
+        function renderBarChart(items, unit) {
+            if (!items || items.length === 0) return '';
+            const max = Math.max(...items.map(i => i.bookCount), 1);
+            return items.map(i => {
+                const pct = Math.round((i.bookCount / max) * 100);
+                return `
+                    <div class="bar-item">
+                        <span class="bar-label">${escapeHtml(i.genreName)}</span>
+                        <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+                        <span class="bar-value">${i.bookCount}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderZeroGenres(items) {
+            if (!items || items.length === 0) return '';
+            return `
+                <div class="zero-genres">
+                    <p style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-bottom: var(--space-1);">Genres with zero visible books:</p>
+                    ${items.map(g => `<span class="chip">${escapeHtml(g)}</span>`).join('')}
+                </div>
+            `;
+        }
+
+        function renderTopList(items, unitLabel) {
+            if (!items || items.length === 0) return '';
+            return items.map((b, idx) => `
+                <div class="top-item">
+                    <span class="top-rank">${idx + 1}</span>
+                    <span class="top-title">${escapeHtml(b.title)}</span>
+                    <span class="top-count">${b.count} ${unitLabel}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderTopRatedList(items) {
+            if (!items || items.length === 0) return '';
+            return items.map((b, idx) => `
+                <div class="top-item">
+                    <span class="top-rank">${idx + 1}</span>
+                    <span class="top-title">${escapeHtml(b.title)}</span>
+                    <span class="top-count">★ ${b.averageRating?.toFixed(1) ?? '–'} (${b.reviewCount} reviews)</span>
+                </div>
+            `).join('');
+        }
+
+        function renderReportedList(items, unitLabel) {
+            if (!items || items.length === 0) return '';
+            return items.map((b, idx) => `
+                <div class="top-item">
+                    <span class="top-rank">${idx + 1}</span>
+                    <span class="top-title">${escapeHtml(b.name)}</span>
+                    <span class="top-count">${b.reportCount} ${unitLabel}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderMissingList(items) {
+            if (!items || items.length === 0) return '';
+            return items.map(b => `
+                <div class="missing-item">
+                    <a href="books.html" class="missing-title">${escapeHtml(b.title)}</a>
+                    <span class="missing-author">${escapeHtml(b.author)}</span>
+                </div>
+            `).join('');
+        }
+
+        // ---------- wiring ----------
+
+        function wireDashboardEvents() {
+            const content = document.getElementById('pageContent');
+
+            content.querySelectorAll('[data-action="toggleDays"]').forEach(b => {
+                b.addEventListener('click', () => {
+                    days = b.dataset.days === '7' ? 30 : 7;
+                    loadDashboard();
+                });
+            });
+
+            content.querySelectorAll('.missing-title').forEach(a => {
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    // The books page has its own search; link generically
+                    window.location.href = 'books.html';
+                });
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
     </script>
+    <style>
+        .stat-card--warn {
+            border-left: 4px solid var(--color-warning);
+        }
+        .sparkline-wrap {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            padding: var(--space-4) 0;
+            min-height: 100px;
+        }
+        .spark-bar {
+            flex: 1;
+            background: var(--color-primary);
+            border-radius: 2px 2px 0 0;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            color: var(--color-text-inverse);
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+        }
+        .spark-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: var(--font-size-xs);
+            color: var(--color-text-muted);
+            margin-top: var(--space-1);
+        }
+        .reason-list, .breakdown-list, .top-list, .missing-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+        }
+        .reason-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-2);
+        }
+        .reason-name { flex: 1; font-size: var(--font-size-sm); }
+        .reason-count { font-size: var(--font-size-sm); font-weight: 600; min-width: 24px; text-align: right; }
+        .reason-bar { flex: 1; height: 8px; background: var(--color-surface-muted); border-radius: 4px; overflow: hidden; }
+        .reason-bar-fill { height: 100%; background: var(--color-primary); }
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: var(--font-size-sm);
+            padding: var(--space-1) 0;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .bar-chart {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+        .bar-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+        .bar-label { flex: 0 0 120px; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bar-track { flex: 1; height: 10px; background: var(--color-surface-muted); border-radius: 5px; overflow: hidden; }
+        .bar-fill { height: 100%; background: var(--color-primary); transition: width 0.3s ease; }
+        .bar-value { flex: 0 0 30px; font-size: var(--font-size-sm); font-weight: 600; }
+        .top-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-2) 0;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .top-rank { font-size: var(--font-size-sm); color: var(--color-text-muted); font-weight: 600; min-width: 20px; }
+        .top-title { flex: 1; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .top-count { font-size: var(--font-size-xs); color: var(--color-text-muted); font-weight: 600; }
+        .zero-genres { margin-top: var(--space-4); }
+        .zero-genres .chip { margin-right: var(--space-2); margin-bottom: var(--space-2); }
+        .missing-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-2) 0;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .missing-title { flex: 1; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--color-primary); }
+        .missing-title:hover { text-decoration: underline; }
+        .missing-author { font-size: var(--font-size-xs); color: var(--color-text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .zero-genre-list { margin-top: var(--space-4); }
+        .missing-list { margin-top: var(--space-4); }
+        @media (max-width: 640px) {
+            .sparkline-wrap { min-height: 80px; }
+            .bar-label { flex: 0 0 100px; }
+        }
+    </style>
 </body>
 </html>

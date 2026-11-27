@@ -1,3 +1,4 @@
+using BookCommunity.Api.DTOs.Admin;
 using BookCommunity.Api.DTOs.Auth;
 using BookCommunity.Api.DTOs.Books;
 using BookCommunity.Api.DTOs.Genres;
@@ -532,4 +533,315 @@ var users = await _userManager.Users.ToListAsync();
         }
         return Ok(roles.OrderBy(r => r).ToList());
     }
+
+    [HttpGet("dashboard")]
+    public async Task<ActionResult<DashboardDto>> GetDashboard([FromQuery] int days = 7)
+    {
+        if (days != 7 && days != 30) days = 7;
+
+        var cutoff = DateTime.UtcNow.AddDays(-days);
+        var cutoff7 = DateTime.UtcNow.AddDays(-7);
+
+        // Context strip: visible books, hidden books, genres, active/suspended users, visible reviews
+        var visibleBooks = await _context.Books.CountAsync(b => b.IsActive);
+        var hiddenBooks = await _context.Books.CountAsync(b => !b.IsActive);
+        var totalGenres = await _context.Genres.CountAsync();
+
+        var allUsers = await _userManager.Users.ToListAsync();
+        var activeUsers = allUsers.Count(u => !u.IsSuspended);
+        var suspendedUsers = allUsers.Count(u => u.IsSuspended);
+
+        var visibleReviews = await _context.Reviews.CountAsync(r => !r.IsDeleted && !r.IsHidden);
+
+        // Needs attention: pending reports + oldest pending age
+        var pendingReports = await _context.Reports
+            .Include(r => r.Review)
+            .ThenInclude(r => r.Book)
+            .Where(r => r.Status == ReportStatus.Pending)
+            .OrderBy(r => r.CreatedAt)
+            .ToListAsync();
+
+        var pendingReportCount = pendingReports.Count;
+        var oldestPendingReportDays = pendingReportCount > 0
+            ? (int)(DateTime.UtcNow - pendingReports.Min(r => r.CreatedAt)).TotalDays
+            : 0;
+
+        // New reports in last 7 days
+        var newReportsLast7Days = await _context.Reports.CountAsync(r => r.CreatedAt >= cutoff7);
+
+        // Hidden/removed reviews in last 7 days
+        var hiddenRemovedReviewsLast7Days = await _context.Reviews.CountAsync(r =>
+            r.CreatedAt >= cutoff7 && (r.IsHidden || r.IsDeleted));
+
+        // Trends: new reviews per day (last N days)
+        var newReviewsPerDay = await _context.Reviews
+            .Where(r => r.CreatedAt >= cutoff)
+            .GroupBy(r => r.CreatedAt.Date)
+            .Select(g => new DailyTrendDto { Date = g.Key.ToString("yyyy-MM-dd"), Count = g.Count() })
+            .OrderBy(g => g.Date)
+            .ToListAsync();
+
+        // Trends: new users per day (ApplicationUser has CreatedAt)
+        var newUsersPerDay = allUsers
+            .Where(u => u.CreatedAt >= cutoff)
+            .GroupBy(u => u.CreatedAt.Date)
+            .Select(g => new DailyTrendDto { Date = g.Key.ToString("yyyy-MM-dd"), Count = g.Count() })
+            .OrderBy(g => g.Date)
+            .ToList();
+
+        // Trends: reports by reason (distinct reason values from DB)
+        var reportsByReason = await _context.Reports
+            .GroupBy(r => r.Reason)
+            .Select(g => new ReasonCountDto { Reason = g.Key, Count = g.Count() })
+            .OrderByDescending(g => g.Count)
+            .ToListAsync();
+
+        // Trends: resolved vs dismissed vs pending breakdown
+        var statusBreakdown = await _context.Reports
+            .GroupBy(r => r.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync();
+        var breakdown = new ReportStatusBreakdownDto
+        {
+            Pending = statusBreakdown.FirstOrDefault(s => s.Status == ReportStatus.Pending)?.Count ?? 0,
+            Dismissed = statusBreakdown.FirstOrDefault(s => s.Status == ReportStatus.Dismissed)?.Count ?? 0,
+            Resolved = statusBreakdown.FirstOrDefault(s => s.Status == ReportStatus.Resolved)?.Count ?? 0
+        };
+
+        // Catalog insights: books per genre
+        var booksPerGenre = await _context.BookGenres
+            .Include(bg => bg.Genre)
+            .Include(bg => bg.Book)
+            .Where(bg => bg.Book.IsActive)
+            .GroupBy(bg => bg.Genre.Name)
+            .Select(g => new GenreBookCountDto { GenreName = g.Key, BookCount = g.Count() })
+            .OrderByDescending(g => g.BookCount)
+            .ToListAsync();
+
+        // Genres with zero visible books
+        var genresWithZeroVisibleBooks = await _context.Genres
+            .Where(g => !g.BookGenres.Any(bg => bg.Book.IsActive))
+            .Select(g => g.Name)
+            .ToListAsync();
+
+        // Top 5 most reviewed visible books
+        var top5MostReviewed = await _context.Books
+            .Where(b => b.IsActive && b.ReviewCount > 0)
+            .OrderByDescending(b => b.ReviewCount)
+            .ThenBy(b => b.Title)
+            .Take(5)
+            .Select(b => new BookSummaryDto
+            {
+                Id = b.Id,
+                Title = b.Title,
+                Author = b.Author,
+                Count = b.ReviewCount,
+                AverageRating = b.AverageRating,
+                ReviewCount = b.ReviewCount
+            })
+            .ToListAsync();
+
+        // Top 5 highest rated visible books (require at least 1 review)
+        var top5HighestRated = await _context.Books
+            .Where(b => b.IsActive && b.ReviewCount > 0)
+            .OrderByDescending(b => b.AverageRating)
+            .ThenByDescending(b => b.ReviewCount)
+            .Take(5)
+            .Select(b => new BookSummaryDto
+            {
+                Id = b.Id,
+                Title = b.Title,
+                Author = b.Author,
+                Count = b.ReviewCount,
+                AverageRating = b.AverageRating,
+                ReviewCount = b.ReviewCount
+            })
+            .ToListAsync();
+
+        // Top 5 most saved to reading lists
+        var top5MostSaved = await _context.ReadingListEntries
+            .Include(rle => rle.Book)
+            .Where(rle => rle.Book.IsActive)
+            .GroupBy(rle => new { rle.Book.Id, rle.Book.Title, rle.Book.Author })
+            .Select(g => new BookSummaryDto
+            {
+                Id = g.Key.Id,
+                Title = g.Key.Title,
+                Author = g.Key.Author,
+                Count = g.Count(),
+                AverageRating = null,
+                ReviewCount = 0
+            })
+            .OrderByDescending(b => b.Count)
+            .Take(5)
+            .ToListAsync();
+
+        // Visible books missing cover or description
+        var booksMissingCoverOrDesc = await _context.Books
+            .Where(b => b.IsActive && (string.IsNullOrWhiteSpace(b.CoverImageUrl) || string.IsNullOrWhiteSpace(b.Description)))
+            .OrderBy(b => b.Title)
+            .Take(5)
+            .Select(b => new BookSummaryDto
+            {
+                Id = b.Id,
+                Title = b.Title,
+                Author = b.Author,
+                Count = 0,
+                AverageRating = null,
+                ReviewCount = 0
+            })
+            .ToListAsync();
+
+        var booksMissingCoverOrDescCount = await _context.Books
+            .CountAsync(b => b.IsActive && (string.IsNullOrWhiteSpace(b.CoverImageUrl) || string.IsNullOrWhiteSpace(b.Description)));
+
+        // Moderation insights: top 5 most reported books
+        var top5MostReportedBooks = await _context.Reports
+            .Include(r => r.Review)
+            .ThenInclude(r => r.Book)
+            .Where(r => r.Review.Book.IsActive)
+            .GroupBy(r => new { r.Review.Book.Id, r.Review.Book.Title })
+            .Select(g => new ReportedItemSummaryDto
+            {
+                Id = g.Key.Id.ToString(),
+                Name = g.Key.Title,
+                ReportCount = g.Count()
+            })
+            .OrderByDescending(g => g.ReportCount)
+            .Take(5)
+            .ToListAsync();
+
+        // Top 5 most reported reviewers
+        var top5MostReportedReviewers = await _context.Reports
+            .Include(r => r.Reporter)
+            .GroupBy(r => new { r.ReporterId, r.Reporter.Email })
+            .Select(g => new ReportedItemSummaryDto
+            {
+                Id = g.Key.ReporterId,
+                Name = g.Key.Email ?? g.Key.ReporterId,
+                ReportCount = g.Count()
+            })
+            .OrderByDescending(g => g.ReportCount)
+            .Take(5)
+            .ToListAsync();
+
+        var result = new DashboardDto
+        {
+            VisibleBooks = visibleBooks,
+            HiddenBooks = hiddenBooks,
+            TotalGenres = totalGenres,
+            ActiveUsers = activeUsers,
+            SuspendedUsers = suspendedUsers,
+            VisibleReviews = visibleReviews,
+            PendingReports = pendingReportCount,
+            OldestPendingReportDays = oldestPendingReportDays,
+            NewReportsLast7Days = newReportsLast7Days,
+            HiddenRemovedReviewsLast7Days = hiddenRemovedReviewsLast7Days,
+            NewReviewsPerDay = newReviewsPerDay.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
+            NewUsersPerDay = newUsersPerDay.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
+            ReportsByReason = reportsByReason.Select(r => new ReasonCount { Reason = r.Reason, Count = r.Count }).ToList(),
+            StatusBreakdown = new ReportStatusBreakdown
+            {
+                Pending = breakdown.Pending,
+                Dismissed = breakdown.Dismissed,
+                Resolved = breakdown.Resolved
+            },
+            BooksPerGenre = booksPerGenre.Select(g => new GenreBookCount { GenreName = g.GenreName, BookCount = g.BookCount }).ToList(),
+            GenresWithZeroVisibleBooks = genresWithZeroVisibleBooks,
+            Top5MostReviewed = top5MostReviewed.Select(b => new BookSummary
+            {
+                Id = b.Id,
+                Title = b.Title,
+                Author = b.Author,
+                Count = b.Count,
+                AverageRating = b.AverageRating,
+                ReviewCount = b.ReviewCount
+            }).ToList(),
+            Top5HighestRated = top5HighestRated.Select(b => new BookSummary
+            {
+                Id = b.Id,
+                Title = b.Title,
+                Author = b.Author,
+                Count = b.Count,
+                AverageRating = b.AverageRating,
+                ReviewCount = b.ReviewCount
+            }).ToList(),
+            Top5MostSaved = top5MostSaved.Select(b => new BookSummary
+            {
+                Id = b.Id,
+                Title = b.Title,
+                Author = b.Author,
+                Count = b.Count,
+                AverageRating = null,
+                ReviewCount = 0
+            }).ToList(),
+            BooksMissingCoverOrDescription = booksMissingCoverOrDescCount,
+            BooksMissingCoverOrDescriptionSample = booksMissingCoverOrDesc.Select(b => new BookSummary
+            {
+                Id = b.Id,
+                Title = b.Title,
+                Author = b.Author,
+                Count = 0,
+                AverageRating = null,
+                ReviewCount = 0
+            }).ToList(),
+            Top5MostReportedBooks = top5MostReportedBooks.Select(b => new ReportedItemSummary
+            {
+                Id = b.Id,
+                Name = b.Name,
+                ReportCount = b.ReportCount
+            }).ToList(),
+            Top5MostReportedReviewers = top5MostReportedReviewers.Select(r => new ReportedItemSummary
+            {
+                Id = r.Id,
+                Name = r.Name,
+                ReportCount = r.ReportCount
+            }).ToList()
+        };
+
+        return Ok(result);
+    }
+}
+
+// Helper DTOs for dashboard queries (internal use only)
+public class DailyTrendDto
+{
+    public string Date { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class ReasonCountDto
+{
+    public string Reason { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class ReportStatusBreakdownDto
+{
+    public int Pending { get; set; }
+    public int Dismissed { get; set; }
+    public int Resolved { get; set; }
+}
+
+public class GenreBookCountDto
+{
+    public string GenreName { get; set; } = string.Empty;
+    public int BookCount { get; set; }
+}
+
+public class BookSummaryDto
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public double? AverageRating { get; set; }
+    public int ReviewCount { get; set; }
+}
+
+public class ReportedItemSummaryDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public int ReportCount { get; set; }
 }
