@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Pagely Admin</title>
-    <link rel="stylesheet" href="../css/styles.css?v=20261127b">
+    <link rel="stylesheet" href="../css/styles.css?v=20261127c">
 </head>
 <body>
     <div id="app"></div>
@@ -160,7 +160,7 @@
                         </div>
 
                         <!-- Row 1: Chart (full width) -->
-                        <div class="stat-card" style="margin-top:var(--space-4); padding-bottom:var(--space-4);">
+                        <div class="stat-card card-depth" style="margin-top:var(--space-4); padding-bottom:var(--space-4);">
                             <div class="chart-card" id="trendChartCard">
                                 <div class="chart-wrapper" id="chartWrapper" style="padding-bottom:var(--space-4);">
                                     ${renderTrendChart(d.weeks, selYear, selMonth)}
@@ -412,13 +412,13 @@
             const monthName = new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
             const allZero = weeks.every(w => w.newUsers === 0 && w.newReviews === 0);
             const maxVal = Math.max(...weeks.map(w => Math.max(w.newUsers, w.newReviews)), 1);
-            const barH = 150;
-            const gap = 40;
+            const barH = 170;
+            const gap = 45;
             const barW = 44;
 
             // Build SVG
-            const svgW = Math.max(480, weeks.length * (barW + gap) + 100);
-            const svgH = 220;
+            const svgW = Math.max(500, weeks.length * (barW + gap) + 100);
+            const svgH = 240;
 
             let barsHtml = '';
             let labelsHtml = '';
@@ -490,6 +490,12 @@
                     <!-- X axis label -->
                     <text x="${svgW / 2}" y="${baseY + 32}" font-size="11" fill="#4A2411" text-anchor="middle" font-weight="600">weeks</text>
                 </svg>
+                <!-- Legend -->
+                <div class="chart-legend">
+                    <div class="legend-item"><span class="legend-color" style="background:#4A2411"></span> Users</div>
+                    <span class="legend-separator">•</span>
+                    <div class="legend-item"><span class="legend-color" style="background:#C79A5B"></span> Reviews</div>
+                </div>
                 <div class="visually-hidden">${hiddenTable}</div>
             `;
 

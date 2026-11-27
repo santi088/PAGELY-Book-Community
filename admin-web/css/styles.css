@@ -283,10 +283,11 @@ textarea {
 
 .card-header h2,
 .card-header h3 {
-    font-family: var(--font-display);
+    font-family: var(--font-sans);
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.01em;
+    color: var(--color-text);
 }
 
 .card-header p {
@@ -630,8 +631,8 @@ tbody tr:last-child td {
     cursor: pointer;
 }
 .stat-card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(74, 36, 17, 0.08), 0 8px 20px rgba(74, 36, 17, 0.12);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(74, 36, 17, 0.16), 0 14px 32px rgba(74, 36, 17, 0.20);
     border-color: var(--color-border-strong);
 }
 .stat-card h3 {
@@ -643,6 +644,19 @@ tbody tr:last-child td {
     letter-spacing: -0.03em;
 }
 
+.card-depth {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-5);
+    box-shadow: 0 4px 8px rgba(74, 36, 17, 0.12), 0 14px 32px rgba(74, 36, 17, 0.22);
+}
+.card-depth:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(74, 36, 17, 0.20), 0 16px 36px rgba(74, 36, 17, 0.24);
+}
+
 .chart-wrapper svg {
     margin-bottom: var(--space-2);
     max-width: 100%;
@@ -651,6 +665,32 @@ tbody tr:last-child td {
 
 .chart-wrapper {
     padding-bottom: var(--space-3);
+}
+
+.chart-legend {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    justify-content: center;
+    margin-top: var(--space-3);
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+}
+.legend-color {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    display: inline-block;
+}
+.legend-separator {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
 }
 
 .stat-card p {
