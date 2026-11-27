@@ -958,14 +958,13 @@ var users = await _userManager.Users.ToListAsync();
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var weeks = new List<WeekTrend>();
 
-        var bucketRanges = new[]
-        {
-            new { Start = 1, End = 7 },
-            new { Start = 8, End = 14 },
-            new { Start = 15, End = 21 },
-            new { Start = 22, End = 28 },
-            new { Start = 29, End = daysInMonth }
-        };
+            var bucketRanges = new[]
+            {
+                new { Start = 1, End = 7 },
+                new { Start = 8, End = 14 },
+                new { Start = 15, End = 21 },
+                new { Start = 22, End = daysInMonth }
+            };
 
         var weekIndex = 0;
         foreach (var range in bucketRanges)
@@ -977,8 +976,6 @@ var users = await _userManager.Users.ToListAsync();
             var endDate = new DateTime(year, month, endDay);
 
             var label = (weekIndex + 1).ToString();
-            if (weekIndex == 4 && daysInMonth <= 28)
-                break;
 
             weeks.Add(new WeekTrend
             {

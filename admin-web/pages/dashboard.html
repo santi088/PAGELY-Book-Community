@@ -418,13 +418,13 @@
 
             // Build SVG
             const svgW = Math.max(480, weeks.length * (barW + gap) + 100);
-            const svgH = 190;
+            const svgH = 220;
 
             let barsHtml = '';
             let labelsHtml = '';
             let hiddenTable = '<table><thead><tr><th>Week</th><th>New Users</th><th>New Reviews</th></tr></thead><tbody>';
 
-            const baseY = svgH - 30;
+            const baseY = svgH - 50;
 
             weeks.forEach((w, i) => {
                 const x = 60 + i * (barW + gap);
