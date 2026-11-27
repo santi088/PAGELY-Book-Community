@@ -4,19 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Pagely Admin</title>
-    <link rel="stylesheet" href="../css/styles.css?v=20261127a">
+    <link rel="stylesheet" href="../css/styles.css?v=20261127b">
 </head>
 <body>
     <div id="app"></div>
 
     <script type="module">
-        import { auth } from '../js/auth.js?v=6';
-        import { api } from '../js/api.js?v=6';
-        import { renderLayout, initLayout, updateSidebarUserInfo } from '../js/layout.js?v=6';
+        import { auth } from '../js/auth.js?v=7';
+        import { api } from '../js/api.js?v=7';
+        import { renderLayout, initLayout, updateSidebarUserInfo } from '../js/layout.js?v=7';
 
         let dashboard = null;
-        let days = 7;
+        let selYear = new Date().getFullYear();
+        let selMonth = new Date().getMonth() + 1;
         let lastUpdated = null;
+        let earliestYear = new Date().getFullYear();
 
         // Pluralization helper used everywhere
         function pluralize(count, singular, plural = null) {
@@ -53,8 +55,13 @@
             `;
 
             try {
-                dashboard = await api.get(`/api/admin/dashboard?days=${days}`);
+                const [dash, trends] = await Promise.all([
+                    api.get(`/api/admin/dashboard?days=7`),
+                    api.get(`/api/admin/dashboard/trends?year=${selYear}&month=${selMonth}`)
+                ]);
+                dashboard = { ...dash, ...trends };
                 lastUpdated = new Date();
+                earliestYear = dashboard.earliestYear || selYear;
 
                 content.innerHTML = renderDashboard(dashboard);
                 wireDashboardEvents();
@@ -72,19 +79,19 @@
 
             // Period comparison strings
             const pendingCompare = d.previousPendingReports > 0
-                ? `${d.pendingReports >= d.previousPendingReports ? '+' : ''}${d.pendingReports - d.previousPendingReports} vs previous ${days} days`
+                ? `${d.pendingReports >= d.previousPendingReports ? '+' : ''}${d.pendingReports - d.previousPendingReports} vs previous ${d.days || 7} days`
                 : d.pendingReports === d.previousPendingReports ? 'no change' : '';
             const newReportsCompare = d.previousPeriodNewReports > 0
-                ? `${d.newReportsLast7Days >= d.previousPeriodNewReports ? '+' : ''}${d.newReportsLast7Days - d.previousPeriodNewReports} vs previous ${days} days`
+                ? `${d.newReportsLast7Days >= d.previousPeriodNewReports ? '+' : ''}${d.newReportsLast7Days - d.previousPeriodNewReports} vs previous ${d.days || 7} days`
                 : d.newReportsLast7Days === d.previousPeriodNewReports ? 'no change' : '';
             const hiddenCompare = d.previousPeriodHiddenRemovedReviews > 0
-                ? `${d.hiddenRemovedReviewsLast7Days >= d.previousPeriodHiddenRemovedReviews ? '+' : ''}${d.hiddenRemovedReviewsLast7Days - d.previousPeriodHiddenRemovedReviews} vs previous ${days} days`
+                ? `${d.hiddenRemovedReviewsLast7Days >= d.previousPeriodHiddenRemovedReviews ? '+' : ''}${d.hiddenRemovedReviewsLast7Days - d.previousPeriodHiddenRemovedReviews} vs previous ${d.days || 7} days`
                 : d.hiddenRemovedReviewsLast7Days === d.previousPeriodHiddenRemovedReviews ? 'no change' : '';
 
             return `
                 <div class="section">
                     <!-- A. Needs Attention -->
-                    <div class="card">
+                    <div class="card dashboard-card">
                         <div class="card-header">
                             <h2>Needs Attention</h2>
                             <p class="section-description">Pending reports: moderate today?</p>
@@ -110,7 +117,7 @@
                     </div>
 
                     <!-- E. Context strip -->
-                    <div class="card">
+                    <div class="card dashboard-card">
                         <div class="card-header">
                             <h2>Catalog at a glance</h2>
                             <p class="section-description">Visible vs hidden, user health, review volume.</p>
@@ -136,35 +143,33 @@
                     </div>
 
                     <!-- B. Trends -->
-                    <div class="card">
+                    <div class="card dashboard-card">
                         <div class="card-header">
                             <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;">
                                 <div>
-                                    <h2 id="trendsTitle">Trends (${days} days)</h2>
-                                    <p class="section-description">Review and user growth, report reasons, resolution breakdown.</p>
+                                    <h2 id="trendsTitle">Trends</h2>
+                                    <p class="section-description">New users and reviews per week, report reasons, resolution breakdown.</p>
                                 </div>
-                                <div class="period-toggle" role="group" aria-label="Time period">
-                                    <button class="period-btn ${days === 7 ? 'active' : ''}" data-days="7">7 days</button>
-                                    <button class="period-btn ${days === 30 ? 'active' : ''}" data-days="30">30 days</button>
+                                <div class="period-selectors" style="display:flex;align-items:center;gap:var(--space-2);">
+                                    <label for="trendYear" style="font-size:var(--font-size-sm);color:var(--color-text-muted);margin:0;">Year</label>
+                                    <select id="trendYear" class="form-control" style="width:auto;max-width:120px;display:inline-block;"></select>
+                                    <label for="trendMonth" style="font-size:var(--font-size-sm);color:var(--color-text-muted);margin:0 0 0 var(--space-2);">Month</label>
+                                    <select id="trendMonth" class="form-control" style="width:auto;max-width:140px;display:inline-block;"></select>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
-                            <!-- New reviews per day -->
-                            <div class="stat-card">
-                                <h3 style="font-size: var(--font-size-lg);">New reviews per day</h3>
-                                <div class="sparkline" id="sparkReviews">${renderSparkline(d.newReviewsPerDay, days)}</div>
-                                ${d.newReviewsPerDay.every(i => i.count === 0) ? '<div class="empty-state" style="padding: var(--space-2);">No review activity</div>' : ''}
+                        <!-- Row 1: Chart (full width) -->
+                        <div class="stat-card" style="margin-top:var(--space-4);">
+                            <div class="chart-card" id="trendChartCard">
+                                <div class="chart-wrapper" id="chartWrapper">
+                                    <!-- Chart rendered here -->
+                                </div>
                             </div>
+                        </div>
 
-                            <!-- New users per day -->
-                            <div class="stat-card">
-                                <h3 style="font-size: var(--font-size-lg);">New users per day</h3>
-                                <div class="sparkline" id="sparkUsers">${renderSparkline(d.newUsersPerDay, days)}</div>
-                                ${d.newUsersPerDay.every(i => i.count === 0) ? '<div class="empty-state" style="padding: var(--space-2);">No user signups</div>' : ''}
-                            </div>
-
+                        <!-- Row 2: Two equal-width cards side by side -->
+                        <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:var(--space-4);">
                             <!-- Reports by reason -->
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Reports by reason</h3>
@@ -172,23 +177,23 @@
                                 ${d.reportsByReason.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
                             </div>
 
-                            <!-- Status breakdown with percentages -->
+                            <!-- Report resolution with percentages -->
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Report resolution</h3>
                                 <div class="breakdown-list" id="breakdownList">${renderBreakdown(d.statusBreakdown)}</div>
-                                ${d.statusBreakdown.Total === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
+                                ${d.statusBreakdown && d.statusBreakdown.Total === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
                             </div>
                         </div>
                     </div>
 
                     <!-- C. Catalog insights -->
-                    <div class="card">
+                    <div class="card dashboard-card">
                         <div class="card-header">
                             <h2>Catalog insights</h2>
                             <p class="section-description">Books per genre, top rated/reviewed, most saved, missing cover data.</p>
                         </div>
 
-                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items:start;">
+                        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start;">
                             <!-- Books per genre bar chart -->
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Books per genre</h3>
@@ -208,7 +213,7 @@
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 highest rated</h3>
                                 <div class="top-list" id="topRated">${renderTopRatedList(d.top5HighestRated)}</div>
-                                ${d.top5HighestRated.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${DashboardDto?.MinReviewsForHighestRated ?? 3}+ visible reviews)</div>` : ''}
+                                ${d.top5HighestRated.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${d.minReviewsForHighestRated ?? 3}+ visible reviews)</div>` : ''}
                             </div>
 
                             <!-- Top 5 most saved -->
@@ -235,27 +240,27 @@
                     </div>
 
                     <!-- D. Moderation insights -->
-                    <div class="card">
+                    <div class="card dashboard-card">
                         <div class="card-header">
                             <h2>Moderation insights</h2>
                             <p class="section-description">Most reported books and reviewers.</p>
                         </div>
-                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items:start;">
+                        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start;">
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reported books</h3>
                                 <div class="top-list" id="topReportedBooks">${renderReportedList(d.top5MostReportedBooks, 'reports')}</div>
-                                ${d.top5MostReportedBooks.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${DashboardDto?.MinReportsForMostReportedBooks ?? 2}+ reports)</div>` : ''}
+                                ${d.top5MostReportedBooks.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${d.minReportsForMostReportedBooks ?? 2}+ reports)</div>` : ''}
                             </div>
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reported reviewers</h3>
                                 <div class="top-list" id="topReportedReviewers">${renderReportedList(d.top5MostReportedReviewers, 'reports')}</div>
-                                ${d.top5MostReportedReviewers.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${DashboardDto?.MinReportsForMostReportedReviewers ?? 2}+ reports)</div>` : ''}
+                                ${d.top5MostReportedReviewers.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${d.minReportsForMostReportedReviewers ?? 2}+ reports)</div>` : ''}
                             </div>
                         </div>
                     </div>
 
                     <!-- Refresh bar -->
-                    <div class="card" style="padding:var(--space-4);">
+                    <div class="card dashboard-card" style="padding:var(--space-4);">
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;">
                             <span class="update-label" id="updateLabel">Updated ${formatTime(lastUpdated)}</span>
                             <button class="btn btn-primary btn-sm" id="btnRefresh" type="button">Refresh</button>
@@ -272,12 +277,10 @@
             return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
-        function shortDateLabel(isoDate, totalDays) {
-            const d = new Date(isoDate + 'T00:00:00');
-            const month = d.toLocaleDateString(undefined, { month: 'short' });
-            const day = d.getDate();
-            const showDay = totalDays === 7 || (d.getDate() % 5 === 1 || d.getDate() === 1);
-            return showDay ? `${month} ${day}` : '';
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
         }
 
         function renderSparkline(items, totalDays) {
@@ -296,6 +299,14 @@
                     ${bars}
                 </div>
             `;
+        }
+
+        function shortDateLabel(isoDate, totalDays) {
+            const d = new Date(isoDate + 'T00:00:00');
+            const month = d.toLocaleDateString(undefined, { month: 'short' });
+            const day = d.getDate();
+            const showDay = totalDays === 7 || (d.getDate() % 5 === 1 || d.getDate() === 1);
+            return showDay ? `${month} ${day}` : '';
         }
 
         function renderReasonList(items) {
@@ -320,10 +331,12 @@
 
         function renderBarChart(items) {
             if (!items || items.length === 0) return '';
-            const max = Math.max(...items.map(i => i.bookCount), 1);
-            return items.map(i => {
-                const pct = Math.round((i.bookCount / max) * 100);
-                const isOther = i.genreName.startsWith('Other');
+            // Scale bars to top 8 only; "Other" row has no bar
+            const top8 = items.slice(0, 8);
+            const max = Math.max(...top8.map(i => i.bookCount), 1);
+            return items.map((i, idx) => {
+                const isOther = idx >= 8 || i.genreName.startsWith('Other');
+                const pct = isOther ? 0 : Math.round((i.bookCount / max) * 100);
                 return `
                     <div class="bar-item">
                         <span class="bar-label${isOther ? ' other-genre' : ''}" title="${escapeHtml(i.genreName)}">${escapeHtml(i.genreName)}</span>
@@ -392,18 +405,134 @@
             }).join('');
         }
 
+        function renderTrendChart(weeks, year, month) {
+            if (!weeks || weeks.length === 0) return '';
+            const monthName = new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            const allZero = weeks.every(w => w.newUsers === 0 && w.newReviews === 0);
+            const maxVal = Math.max(...weeks.map(w => Math.max(w.newUsers, w.newReviews)), 1);
+            const barH = 120;
+            const gap = 14;
+            const barW = 56;
+
+            // Build SVG
+            const svgW = Math.max(480, weeks.length * (barW + gap) + 100);
+            const svgH = 150;
+
+            let barsHtml = '';
+            let labelsHtml = '';
+            let hiddenTable = '<table><thead><tr><th>Week</th><th>New Users</th><th>New Reviews</th></tr></thead><tbody>';
+
+            weeks.forEach((w, i) => {
+                const x = 60 + i * (barW + gap);
+                const uH = w.newUsers === 0 ? 0 : Math.round((w.newUsers / maxVal) * barH);
+                const rH = w.newReviews === 0 ? 0 : Math.round((w.newReviews / maxVal) * barH);
+                const baseY = svgH - 30;
+
+                // Users bar (left)
+                if (uH > 0) {
+                    barsHtml += `<rect x="${x}" y="${baseY - uH}" width="${barW / 2 - 4}" height="${uH}" fill="#4A2411" title="Week ${i + 1}: ${w.newUsers} new users"/>`;
+                }
+                // Reviews bar (right)
+                if (rH > 0) {
+                    barsHtml += `<rect x="${x + barW / 2 + 4}" y="${baseY - rH}" width="${barW / 2 - 4}" height="${rH}" fill="#C79A5B" title="Week ${i + 1}: ${w.newReviews} new reviews"/>`;
+                }
+
+                // Value labels (hide 0)
+                if (w.newUsers > 0) {
+                    barsHtml += `<text x="${x + barW / 4 - 2}" y="${baseY - uH - 6}" font-size="10" fill="#4A2411" font-weight="600" text-anchor="middle">${w.newUsers}</text>`;
+                }
+                if (w.newReviews > 0) {
+                    barsHtml += `<text x="${x + barW / 2 + barW / 4 - 2}" y="${baseY - rH - 6}" font-size="10" fill="#C79A5B" font-weight="600" text-anchor="middle">${w.newReviews}</text>`;
+                }
+
+                // X labels (horizontal, no rotation)
+                labelsHtml += `<text x="${x + barW / 2}" y="${baseY + 18}" font-size="11" fill="#7D6757" text-anchor="middle" font-weight="600">${w.label.replace('\\n', ' ')}</text>`;
+
+                hiddenTable += `<tr><td>${w.label.replace('\\n', ' ')}</td><td>${w.newUsers}</td><td>${w.newReviews}</td></tr>`;
+            });
+
+            hiddenTable += '</tbody></table>';
+
+            // Y axis ticks
+            const yTicks = [1, 2, 5, 10, 20, 50, 100].find(t => maxVal / t <= 5) || 5;
+            const yTickCount = Math.ceil(maxVal / yTicks);
+            let yAxisHtml = '';
+            for (let i = 0; i <= yTickCount; i++) {
+                const val = i * yTicks;
+                const y = baseY - (val / maxVal) * barH;
+                yAxisHtml += `<line x1="45" y1="${y}" x2="60" y2="${y}" stroke="#EADFD1" stroke-width="1"/>`;
+                yAxisHtml += `<text x="40" y="${y + 3}" font-size="10" fill="#7D6757" text-anchor="end">${val}</text>`;
+            }
+
+            const svg = `
+                <svg width="${svgW}" height="${svgH}" role="img" aria-label="New users and reviews per week for ${monthName}. Total new users: ${weeks.reduce((s,w)=>s+w.newUsers,0)}, total new reviews: ${weeks.reduce((s,w)=>s+w.newReviews,0)}">
+                    <defs>
+                        <linearGradient id="gradUsers" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#4A2411" stop-opacity="0.9"/>
+                            <stop offset="100%" stop-color="#4A2411" stop-opacity="0.6"/>
+                        </linearGradient>
+                        <linearGradient id="gradReviews" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#C79A5B" stop-opacity="0.9"/>
+                            <stop offset="100%" stop-color="#C79A5B" stop-opacity="0.6"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- Y axis gridlines -->
+                    ${yAxisHtml}
+                    <!-- Bars -->
+                    ${barsHtml}
+                    <!-- X labels -->
+                    ${labelsHtml}
+                    <!-- X axis line -->
+                    <line x1="60" y1="${baseY}" x2="${svgW - 20}" y2="${baseY}" stroke="#EADFD1" stroke-width="2"/>
+                </svg>
+                <div class="visually-hidden">${hiddenTable}</div>
+            `;
+
+            return svg;
+        }
+
         // ---------- wiring ----------
 
         function wireDashboardEvents() {
             const content = document.getElementById('pageContent');
 
-            // Period toggle
-            content.querySelectorAll('.period-btn').forEach(b => {
-                b.addEventListener('click', () => {
-                    days = parseInt(b.dataset.days, 10);
+            // Period selectors
+            const yearSel = document.getElementById('trendYear');
+            const monthSel = document.getElementById('trendMonth');
+            if (yearSel && monthSel) {
+                // Populate year select
+                for (let y = earliestYear; y <= new Date().getFullYear(); y++) {
+                    const opt = document.createElement('option');
+                    opt.value = y;
+                    opt.textContent = y;
+                    if (y === selYear) opt.selected = true;
+                    yearSel.appendChild(opt);
+                }
+                // Populate month select
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+                for (let m = 1; m <= 12; m++) {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = monthNames[m - 1];
+                    if (m === selMonth) opt.selected = true;
+                    // Disable future months
+                    const today = new Date();
+                    if (y > today.getFullYear() || (y === today.getFullYear() && m > today.getMonth() + 1)) {
+                        opt.disabled = true;
+                    }
+                    monthSel.appendChild(opt);
+                }
+
+                yearSel.addEventListener('change', () => {
+                    selYear = parseInt(yearSel.value, 10);
                     loadDashboard();
                 });
-            });
+                monthSel.addEventListener('change', () => {
+                    selMonth = parseInt(monthSel.value, 10);
+                    loadDashboard();
+                });
+            }
 
             // Refresh button
             const btnRefresh = document.getElementById('btnRefresh');
@@ -424,12 +553,6 @@
             // Update sidebar user info
             updateSidebarUserInfo();
         }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text == null ? '' : String(text);
-            return div.innerHTML;
-        }
     </script>
     <style>
         .stat-card--warn {
@@ -437,6 +560,16 @@
         }
         .stat-card a { text-decoration: none; color: inherit; }
         .stat-card a:hover { opacity: 0.9; }
+        .dashboard-card {
+            box-shadow: 0 1px 2px rgba(74, 36, 17, 0.06), 0 6px 16px rgba(74, 36, 17, 0.10);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            background: var(--color-surface);
+        }
+        .dashboard-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(74, 36, 17, 0.08), 0 8px 20px rgba(74, 36, 17, 0.12);
+        }
         .sparkline-wrap {
             display: flex;
             align-items: flex-end;
@@ -539,30 +672,26 @@
         .missing-title:hover { text-decoration: underline; }
         .missing-chips { display: flex; gap: var(--space-1); flex-shrink: 0; }
         .update-label { font-size: var(--font-size-xs); color: var(--color-text-muted); }
-        .period-toggle {
-            display: inline-flex;
-            gap: 2px;
-            background: var(--color-surface);
-            border: 1px solid var(--color-border);
-            border-radius: 999px;
-            padding: 2px;
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
-        .period-btn {
-            border: none;
-            background: transparent;
-            color: var(--color-text);
-            padding: 0.4rem 0.8rem;
-            border-radius: 999px;
-            font-size: var(--font-size-sm);
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .period-btn:hover { background: var(--color-surface-muted); }
-        .period-btn.active { background: var(--color-primary); color: var(--color-text-inverse); }
         @media (max-width: 640px) {
-            .sparkline-wrap { min-height: 80px; }
-            .bar-label { flex: 0 0 100px; }
-            .period-toggle { display: flex; flex-wrap: wrap; }
+            .period-selectors {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .period-selectors select {
+                width: 100% !important;
+                margin: var(--space-1) 0 !important;
+            }
         }
     </style>
 </body>
