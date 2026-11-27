@@ -4,18 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Pagely Admin</title>
-    <link rel="stylesheet" href="../css/styles.css?v=20261126a">
+    <link rel="stylesheet" href="../css/styles.css?v=20261127a">
 </head>
 <body>
     <div id="app"></div>
 
     <script type="module">
-        import { auth } from '../js/auth.js?v=5';
-        import { api } from '../js/api.js?v=5';
-        import { renderLayout, initLayout } from '../js/layout.js?v=5';
+        import { auth } from '../js/auth.js?v=6';
+        import { api } from '../js/api.js?v=6';
+        import { renderLayout, initLayout, updateSidebarUserInfo } from '../js/layout.js?v=6';
 
         let dashboard = null;
         let days = 7;
+        let lastUpdated = null;
+
+        // Pluralization helper used everywhere
+        function pluralize(count, singular, plural = null) {
+            const p = plural || singular + 's';
+            return count === 1 ? `1 ${singular}` : `${count} ${p}`;
+        }
 
         const isAdmin = await auth.requireAdmin();
         if (!isAdmin) {
@@ -47,6 +54,7 @@
 
             try {
                 dashboard = await api.get(`/api/admin/dashboard?days=${days}`);
+                lastUpdated = new Date();
 
                 content.innerHTML = renderDashboard(dashboard);
                 wireDashboardEvents();
@@ -62,35 +70,41 @@
         function renderDashboard(d) {
             const pendingWarning = d.oldestPendingReportDays > 3 ? ' stat-card--warn' : '';
 
+            // Period comparison strings
+            const pendingCompare = d.previousPendingReports > 0
+                ? `${d.pendingReports >= d.previousPendingReports ? '+' : ''}${d.pendingReports - d.previousPendingReports} vs previous ${days} days`
+                : d.pendingReports === d.previousPendingReports ? 'no change' : '';
+            const newReportsCompare = d.previousPeriodNewReports > 0
+                ? `${d.newReportsLast7Days >= d.previousPeriodNewReports ? '+' : ''}${d.newReportsLast7Days - d.previousPeriodNewReports} vs previous ${days} days`
+                : d.newReportsLast7Days === d.previousPeriodNewReports ? 'no change' : '';
+            const hiddenCompare = d.previousPeriodHiddenRemovedReviews > 0
+                ? `${d.hiddenRemovedReviewsLast7Days >= d.previousPeriodHiddenRemovedReviews ? '+' : ''}${d.hiddenRemovedReviewsLast7Days - d.previousPeriodHiddenRemovedReviews} vs previous ${days} days`
+                : d.hiddenRemovedReviewsLast7Days === d.previousPeriodHiddenRemovedReviews ? 'no change' : '';
+
             return `
                 <div class="section">
                     <!-- A. Needs Attention -->
                     <div class="card">
                         <div class="card-header">
-                            <div>
-                                <h2>Needs Attention</h2>
-                                <p class="section-description">Pending reports: moderate today?</p>
-                            </div>
-                            <div class="page-actions">
-                                <button class="btn btn-sm btn-secondary" data-action="toggleDays" data-days="${days === 7 ? 30 : 7}">
-                                    ${days === 7 ? 'Last 30 days' : 'Last 7 days'}
-                                </button>
-                                <a href="reports.html" class="btn btn-sm btn-primary">Go to Reports</a>
-                            </div>
+                            <h2>Needs Attention</h2>
+                            <p class="section-description">Pending reports: moderate today?</p>
                         </div>
                         <div class="grid">
-                            <div class="stat-card${pendingWarning}">
+                            <div class="stat-card${pendingWarning}" data-nav="reports.html?status=pending" style="cursor:pointer;">
                                 <h3>${d.pendingReports}</h3>
-                                <p>Pending reports${d.oldestPendingReportDays > 0 ? ` &bull; oldest ${d.oldestPendingReportDays}d ago` : ''}</p>
+                                <p>
+                                    ${d.pendingReports === 0 ? 'All caught up' : `Pending reports &bull; oldest ${d.oldestPendingReportDays}d ago`}
+                                    ${pendingCompare ? `<br><span class="compare-text">${pendingCompare}</span>` : ''}
+                                </p>
                                 ${d.oldestPendingReportDays > 3 ? '<span class="badge badge-warning">Over 3 days old</span>' : ''}
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card" data-nav="reports.html?sort=newest" style="cursor:pointer;">
                                 <h3>${d.newReportsLast7Days}</h3>
-                                <p>New reports (7 days)</p>
+                                <p>New reports (7 days)${newReportsCompare ? `<br><span class="compare-text">${newReportsCompare}</span>` : ''}</p>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card" data-nav="reviews.html?status=hidden" style="cursor:pointer;">
                                 <h3>${d.hiddenRemovedReviewsLast7Days}</h3>
-                                <p>Hidden/removed reviews (7 days)</p>
+                                <p>Hidden/removed reviews (7 days)${hiddenCompare ? `<br><span class="compare-text">${hiddenCompare}</span>` : ''}</p>
                             </div>
                         </div>
                     </div>
@@ -124,23 +138,31 @@
                     <!-- B. Trends -->
                     <div class="card">
                         <div class="card-header">
-                            <h2>Trends (${days} days)</h2>
-                            <p class="section-description">Review and user growth, report reasons, resolution breakdown.</p>
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;">
+                                <div>
+                                    <h2 id="trendsTitle">Trends (${days} days)</h2>
+                                    <p class="section-description">Review and user growth, report reasons, resolution breakdown.</p>
+                                </div>
+                                <div class="period-toggle" role="group" aria-label="Time period">
+                                    <button class="period-btn ${days === 7 ? 'active' : ''}" data-days="7">7 days</button>
+                                    <button class="period-btn ${days === 30 ? 'active' : ''}" data-days="30">30 days</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
                             <!-- New reviews per day -->
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">New reviews per day</h3>
-                                <div class="sparkline" id="sparkReviews">${renderSparkline(d.newReviewsPerDay, 'New reviews')}</div>
-                                ${d.newReviewsPerDay.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No review activity</div>' : ''}
+                                <div class="sparkline" id="sparkReviews">${renderSparkline(d.newReviewsPerDay, days)}</div>
+                                ${d.newReviewsPerDay.every(i => i.count === 0) ? '<div class="empty-state" style="padding: var(--space-2);">No review activity</div>' : ''}
                             </div>
 
                             <!-- New users per day -->
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">New users per day</h3>
-                                <div class="sparkline" id="sparkUsers">${renderSparkline(d.newUsersPerDay, 'New users')}</div>
-                                ${d.newUsersPerDay.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No user signups</div>' : ''}
+                                <div class="sparkline" id="sparkUsers">${renderSparkline(d.newUsersPerDay, days)}</div>
+                                ${d.newUsersPerDay.every(i => i.count === 0) ? '<div class="empty-state" style="padding: var(--space-2);">No user signups</div>' : ''}
                             </div>
 
                             <!-- Reports by reason -->
@@ -150,11 +172,11 @@
                                 ${d.reportsByReason.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
                             </div>
 
-                            <!-- Status breakdown -->
+                            <!-- Status breakdown with percentages -->
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Report resolution</h3>
                                 <div class="breakdown-list" id="breakdownList">${renderBreakdown(d.statusBreakdown)}</div>
-                                ${d.statusBreakdown.Pending === 0 && d.statusBreakdown.Dismissed === 0 && d.statusBreakdown.Resolved === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
+                                ${d.statusBreakdown.Total === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reports</div>' : ''}
                             </div>
                         </div>
                     </div>
@@ -166,11 +188,11 @@
                             <p class="section-description">Books per genre, top rated/reviewed, most saved, missing cover data.</p>
                         </div>
 
-                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items:start;">
                             <!-- Books per genre bar chart -->
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Books per genre</h3>
-                                <div class="bar-chart" id="barChartBooksPerGenre">${renderBarChart(d.booksPerGenre, 'Books')}</div>
+                                <div class="bar-chart" id="barChartBooksPerGenre">${renderBarChart(d.booksPerGenre)}</div>
                                 ${d.booksPerGenre.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No genre data</div>' : ''}
                                 <div class="zero-genre-list" id="zeroGenreList">${renderZeroGenres(d.genresWithZeroVisibleBooks)}</div>
                             </div>
@@ -186,7 +208,7 @@
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 highest rated</h3>
                                 <div class="top-list" id="topRated">${renderTopRatedList(d.top5HighestRated)}</div>
-                                ${d.top5HighestRated.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No rated books</div>' : ''}
+                                ${d.top5HighestRated.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${DashboardDto?.MinReviewsForHighestRated ?? 3}+ visible reviews)</div>` : ''}
                             </div>
 
                             <!-- Top 5 most saved -->
@@ -205,6 +227,9 @@
                                 </div>
                                 <div class="missing-list" id="missingList">${renderMissingList(d.booksMissingCoverOrDescriptionSample)}</div>
                                 ${d.booksMissingCoverOrDescriptionSample.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">All books have cover and description</div>' : ''}
+                                <div style="margin-top:var(--space-2);">
+                                    <a href="books.html?filter=missingCoverOrDesc" class="btn btn-sm btn-secondary">View all</a>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -215,17 +240,25 @@
                             <h2>Moderation insights</h2>
                             <p class="section-description">Most reported books and reviewers.</p>
                         </div>
-                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items:start;">
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reported books</h3>
                                 <div class="top-list" id="topReportedBooks">${renderReportedList(d.top5MostReportedBooks, 'reports')}</div>
-                                ${d.top5MostReportedBooks.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reported books</div>' : ''}
+                                ${d.top5MostReportedBooks.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${DashboardDto?.MinReportsForMostReportedBooks ?? 2}+ reports)</div>` : ''}
                             </div>
                             <div class="stat-card">
                                 <h3 style="font-size: var(--font-size-lg);">Top 5 most reported reviewers</h3>
                                 <div class="top-list" id="topReportedReviewers">${renderReportedList(d.top5MostReportedReviewers, 'reports')}</div>
-                                ${d.top5MostReportedReviewers.length === 0 ? '<div class="empty-state" style="padding: var(--space-2);">No reported reviewers</div>' : ''}
+                                ${d.top5MostReportedReviewers.length === 0 ? `<div class="empty-state" style="padding: var(--space-2);">Not enough data yet (need ${DashboardDto?.MinReportsForMostReportedReviewers ?? 2}+ reports)</div>` : ''}
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Refresh bar -->
+                    <div class="card" style="padding:var(--space-4);">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;">
+                            <span class="update-label" id="updateLabel">Updated ${formatTime(lastUpdated)}</span>
+                            <button class="btn btn-primary btn-sm" id="btnRefresh" type="button">Refresh</button>
                         </div>
                     </div>
                 </div>
@@ -234,17 +267,33 @@
 
         // ---------- render helpers ----------
 
-        function renderSparkline(items, label) {
+        function formatTime(dt) {
+            if (!dt) return 'never';
+            return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function shortDateLabel(isoDate, totalDays) {
+            const d = new Date(isoDate + 'T00:00:00');
+            const month = d.toLocaleDateString(undefined, { month: 'short' });
+            const day = d.getDate();
+            const showDay = totalDays === 7 || (d.getDate() % 5 === 1 || d.getDate() === 1);
+            return showDay ? `${month} ${day}` : '';
+        }
+
+        function renderSparkline(items, totalDays) {
             if (!items || items.length === 0) return '';
             const max = Math.max(...items.map(i => i.count), 1);
-            const bars = items.map(i => {
+            const bars = items.map((i, idx) => {
                 const h = Math.round((i.count / max) * 60);
-                return `<div class="spark-bar" style="height:${h}px;" title="${i.date}: ${i.count}">${i.count}</div>`;
+                const label = shortDateLabel(i.date, totalDays);
+                return `
+                    <div class="spark-bar" style="height:${h}px;" title="${i.date}: ${i.count}">${i.count > 0 ? i.count : ''}</div>
+                    ${label ? `<div class="spark-label">${label}</div>` : '<div class="spark-label-spacer"></div>'}
+                `;
             }).join('');
             return `
                 <div class="sparkline-wrap">
                     ${bars}
-                    <div class="spark-labels">${items.map(i => `<span>${i.date.slice(5)}</span>`).join('')}</div>
                 </div>
             `;
         }
@@ -261,23 +310,23 @@
         }
 
         function renderBreakdown(b) {
-            const total = b.pending + b.dismissed + b.resolved;
-            if (total === 0) return '';
+            if (!b || b.Total === 0) return '';
             return `
-                <div class="breakdown-item"><span>Pending</span><span>${b.pending}</span></div>
-                <div class="breakdown-item"><span>Dismissed</span><span>${b.dismissed}</span></div>
-                <div class="breakdown-item"><span>Resolved</span><span>${b.resolved}</span></div>
+                <div class="breakdown-item"><span>Pending</span><span>${b.pending} (${b.PendingPercent}%)</span></div>
+                <div class="breakdown-item"><span>Dismissed</span><span>${b.dismissed} (${b.DismissedPercent}%)</span></div>
+                <div class="breakdown-item"><span>Resolved</span><span>${b.resolved} (${b.ResolvedPercent}%)</span></div>
             `;
         }
 
-        function renderBarChart(items, unit) {
+        function renderBarChart(items) {
             if (!items || items.length === 0) return '';
             const max = Math.max(...items.map(i => i.bookCount), 1);
             return items.map(i => {
                 const pct = Math.round((i.bookCount / max) * 100);
+                const isOther = i.genreName.startsWith('Other');
                 return `
                     <div class="bar-item">
-                        <span class="bar-label">${escapeHtml(i.genreName)}</span>
+                        <span class="bar-label${isOther ? ' other-genre' : ''}" title="${escapeHtml(i.genreName)}">${escapeHtml(i.genreName)}</span>
                         <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
                         <span class="bar-value">${i.bookCount}</span>
                     </div>
@@ -290,7 +339,7 @@
             return `
                 <div class="zero-genres">
                     <p style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-bottom: var(--space-1);">Genres with zero visible books:</p>
-                    ${items.map(g => `<span class="chip">${escapeHtml(g)}</span>`).join('')}
+                    ${items.map(g => `<a href="books.html?genre=${encodeURIComponent(g)}" class="chip chip-link">${escapeHtml(g)}</a>`).join('')}
                 </div>
             `;
         }
@@ -300,8 +349,8 @@
             return items.map((b, idx) => `
                 <div class="top-item">
                     <span class="top-rank">${idx + 1}</span>
-                    <span class="top-title">${escapeHtml(b.title)}</span>
-                    <span class="top-count">${b.count} ${unitLabel}</span>
+                    <span class="top-title" title="${escapeHtml(b.title)}">${escapeHtml(b.title)}</span>
+                    <span class="top-count">${pluralize(b.count, unitLabel)}</span>
                 </div>
             `).join('');
         }
@@ -311,8 +360,8 @@
             return items.map((b, idx) => `
                 <div class="top-item">
                     <span class="top-rank">${idx + 1}</span>
-                    <span class="top-title">${escapeHtml(b.title)}</span>
-                    <span class="top-count">★ ${b.averageRating?.toFixed(1) ?? '–'} (${b.reviewCount} reviews)</span>
+                    <span class="top-title" title="${escapeHtml(b.title)}">${escapeHtml(b.title)}</span>
+                    <span class="top-count">★ ${b.averageRating?.toFixed(1) ?? '–'} (${pluralize(b.reviewCount, 'review')})</span>
                 </div>
             `).join('');
         }
@@ -322,20 +371,25 @@
             return items.map((b, idx) => `
                 <div class="top-item">
                     <span class="top-rank">${idx + 1}</span>
-                    <span class="top-title">${escapeHtml(b.name)}</span>
-                    <span class="top-count">${b.reportCount} ${unitLabel}</span>
+                    <span class="top-title" title="${escapeHtml(b.name)}">${escapeHtml(b.name)}</span>
+                    <span class="top-count">${pluralize(b.reportCount, unitLabel)}</span>
                 </div>
             `).join('');
         }
 
         function renderMissingList(items) {
             if (!items || items.length === 0) return '';
-            return items.map(b => `
+            return items.map(b => {
+                const chips = [];
+                if (!b.coverImageUrl) chips.push('No cover');
+                if (!b.description) chips.push('No description');
+                return `
                 <div class="missing-item">
                     <a href="books.html" class="missing-title">${escapeHtml(b.title)}</a>
-                    <span class="missing-author">${escapeHtml(b.author)}</span>
+                    <span class="missing-chips">${chips.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join('')}</span>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // ---------- wiring ----------
@@ -343,20 +397,32 @@
         function wireDashboardEvents() {
             const content = document.getElementById('pageContent');
 
-            content.querySelectorAll('[data-action="toggleDays"]').forEach(b => {
+            // Period toggle
+            content.querySelectorAll('.period-btn').forEach(b => {
                 b.addEventListener('click', () => {
-                    days = b.dataset.days === '7' ? 30 : 7;
+                    days = parseInt(b.dataset.days, 10);
                     loadDashboard();
                 });
             });
 
-            content.querySelectorAll('.missing-title').forEach(a => {
-                a.addEventListener('click', (e) => {
+            // Refresh button
+            const btnRefresh = document.getElementById('btnRefresh');
+            if (btnRefresh) {
+                btnRefresh.addEventListener('click', () => {
+                    loadDashboard();
+                });
+            }
+
+            // Needs attention card links
+            content.querySelectorAll('[data-nav]').forEach(el => {
+                el.addEventListener('click', (e) => {
                     e.preventDefault();
-                    // The books page has its own search; link generically
-                    window.location.href = 'books.html';
+                    window.location.href = el.dataset.nav;
                 });
             });
+
+            // Update sidebar user info
+            updateSidebarUserInfo();
         }
 
         function escapeHtml(text) {
@@ -369,10 +435,12 @@
         .stat-card--warn {
             border-left: 4px solid var(--color-warning);
         }
+        .stat-card a { text-decoration: none; color: inherit; }
+        .stat-card a:hover { opacity: 0.9; }
         .sparkline-wrap {
             display: flex;
             align-items: flex-end;
-            gap: 4px;
+            gap: 6px;
             padding: var(--space-4) 0;
             min-height: 100px;
         }
@@ -387,12 +455,25 @@
             font-size: var(--font-size-xs);
             font-weight: 600;
         }
-        .spark-labels {
-            display: flex;
-            justify-content: space-between;
+        .spark-label {
             font-size: var(--font-size-xs);
             color: var(--color-text-muted);
-            margin-top: var(--space-1);
+            text-align: center;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .spark-label-spacer {
+            height: 40px;
+            flex: 0 0 14px;
+        }
+        .compare-text {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-muted);
+            font-weight: 500;
         }
         .reason-list, .breakdown-list, .top-list, .missing-list {
             display: flex;
@@ -426,7 +507,8 @@
             align-items: center;
             gap: var(--space-3);
         }
-        .bar-label { flex: 0 0 120px; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bar-label { flex: 0 0 150px; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bar-label.other-genre { font-style: italic; opacity: 0.8; cursor: pointer; }
         .bar-track { flex: 1; height: 10px; background: var(--color-surface-muted); border-radius: 5px; overflow: hidden; }
         .bar-fill { height: 100%; background: var(--color-primary); transition: width 0.3s ease; }
         .bar-value { flex: 0 0 30px; font-size: var(--font-size-sm); font-weight: 600; }
@@ -443,6 +525,8 @@
         .top-count { font-size: var(--font-size-xs); color: var(--color-text-muted); font-weight: 600; }
         .zero-genres { margin-top: var(--space-4); }
         .zero-genres .chip { margin-right: var(--space-2); margin-bottom: var(--space-2); }
+        .chip-link { cursor: pointer; text-decoration: none; }
+        .chip-link:hover { background: var(--color-surface-muted); }
         .missing-item {
             display: flex;
             justify-content: space-between;
@@ -453,12 +537,32 @@
         }
         .missing-title { flex: 1; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--color-primary); }
         .missing-title:hover { text-decoration: underline; }
-        .missing-author { font-size: var(--font-size-xs); color: var(--color-text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .zero-genre-list { margin-top: var(--space-4); }
-        .missing-list { margin-top: var(--space-4); }
+        .missing-chips { display: flex; gap: var(--space-1); flex-shrink: 0; }
+        .update-label { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+        .period-toggle {
+            display: inline-flex;
+            gap: 2px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 999px;
+            padding: 2px;
+        }
+        .period-btn {
+            border: none;
+            background: transparent;
+            color: var(--color-text);
+            padding: 0.4rem 0.8rem;
+            border-radius: 999px;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .period-btn:hover { background: var(--color-surface-muted); }
+        .period-btn.active { background: var(--color-primary); color: var(--color-text-inverse); }
         @media (max-width: 640px) {
             .sparkline-wrap { min-height: 80px; }
             .bar-label { flex: 0 0 100px; }
+            .period-toggle { display: flex; flex-wrap: wrap; }
         }
     </style>
 </body>

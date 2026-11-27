@@ -10,11 +10,11 @@
     <div id="app"></div>
 
     <script type="module">
-        import { auth } from '../js/auth.js?v=5';
-        import { api } from '../js/api.js?v=5';
-        import { renderLayout, initLayout } from '../js/layout.js?v=5';
-        import { renderToolbar, renderPagination } from '../js/components.js?v=5';
-        import { createListStore, bindListToolbar } from '../js/list-utils.js?v=5';
+        import { auth } from '../js/auth.js?v=6';
+        import { api } from '../js/api.js?v=6';
+        import { renderLayout, initLayout } from '../js/layout.js?v=6';
+        import { renderToolbar, renderPagination } from '../js/components.js?v=6';
+        import { createListStore, bindListToolbar } from '../js/list-utils.js?v=6';
 
         // Filter/sort state persisted across modal opens (shared store)
         let store = null;
@@ -25,10 +25,15 @@
             document.getElementById('app').innerHTML = renderLayout('Reports & Moderation', 'Review and resolve user reports.');
             initLayout();
 
+            // Read initial filter from URL (?reason=..., ?sort=...)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlReason = urlParams.get('reason');
+            const urlSort = urlParams.get('sort');
+
             store = createListStore({
                 search: '',
-                filters: { reason: '' },
-                sort: 'recent',
+                filters: { reason: urlReason || '' },
+                sort: urlSort || 'recent',
                 page: 1,
                 pageSize: 20
             });

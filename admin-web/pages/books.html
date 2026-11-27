@@ -10,11 +10,11 @@
     <div id="app"></div>
 
     <script type="module">
-        import { auth } from '../js/auth.js';
-        import { api } from '../js/api.js';
-        import { renderLayout, initLayout } from '../js/layout.js';
-        import { renderToolbar, renderPagination } from '../js/components.js';
-        import { createListStore, bindListToolbar } from '../js/list-utils.js';
+        import { auth } from '../js/auth.js?v=6';
+        import { api } from '../js/api.js?v=6';
+        import { renderLayout, initLayout } from '../js/layout.js?v=6';
+        import { renderToolbar, renderPagination } from '../js/components.js?v=6';
+        import { createListStore, bindListToolbar } from '../js/list-utils.js?v=6';
 
         // ---- state ---------------------------------------------------------
         let store = null;
@@ -44,9 +44,14 @@
             const genresResp = await api.get('/api/genres');
             genres = Array.isArray(genresResp) ? genresResp : [];
 
+            // Read initial filter from URL (?filter=missingCoverOrDesc)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlFilter = urlParams.get('filter');
+            const initialMissingCover = urlFilter === 'missingCoverOrDesc';
+
             store = createListStore({
                 search: '',
-                filters: { genre: '', isActive: '' },
+                filters: { genre: '', isActive: '', missingCoverOrDesc: initialMissingCover ? 'true' : '' },
                 sort: 'created:desc',
                 page: 1,
                 pageSize: 24
@@ -194,6 +199,14 @@
                                 { value: 'false', label: 'Hidden' }
                             ],
                             value: s.filters.isActive || ''
+                        },
+                        {
+                            key: 'missingCoverOrDesc',
+                            options: [
+                                { value: '', label: 'All' },
+                                { value: 'true', label: 'Missing cover or description' }
+                            ],
+                            value: s.filters.missingCoverOrDesc || ''
                         }
                     ],
                     sortOptions: [

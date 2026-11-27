@@ -10,11 +10,11 @@
     <div id="app"></div>
 
     <script type="module">
-        import { auth } from '../js/auth.js?v=4';
-        import { api } from '../js/api.js?v=4';
-        import { renderLayout, initLayout } from '../js/layout.js?v=4';
-        import { renderToolbar, renderPagination } from '../js/components.js?v=4';
-        import { createListStore, bindListToolbar } from '../js/list-utils.js?v=4';
+        import { auth } from '../js/auth.js?v=6';
+        import { api } from '../js/api.js?v=6';
+        import { renderLayout, initLayout } from '../js/layout.js?v=6';
+        import { renderToolbar, renderPagination } from '../js/components.js?v=6';
+        import { createListStore, bindListToolbar } from '../js/list-utils.js?v=6';
 
         const PAGE_SIZE = 20;
         let store = null;
@@ -32,9 +32,13 @@
                 'COMMUNITY');
             initLayout();
 
+            // Read initial filter from URL (?status=...)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlStatus = urlParams.get('status');
+
             store = createListStore({
                 search: '',
-                filters: { status: '', rating: '' },
+                filters: { status: urlStatus || '', rating: '' },
                 sort: 'newest',
                 page: 1,
                 pageSize: PAGE_SIZE

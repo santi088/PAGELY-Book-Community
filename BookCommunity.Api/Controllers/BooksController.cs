@@ -22,6 +22,7 @@ public class BooksController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] string? genre,
         [FromQuery] bool? isActive,
+        [FromQuery] bool? missingCoverOrDesc,
         [FromQuery] string? sortBy = "title",
         [FromQuery] string? sortOrder = "asc",
         [FromQuery] int page = 1,
@@ -38,6 +39,11 @@ public class BooksController : ControllerBase
         if (isActive.HasValue)
         {
             query = query.Where(b => b.IsActive == isActive.Value);
+        }
+
+        if (missingCoverOrDesc.HasValue && missingCoverOrDesc.Value)
+        {
+            query = query.Where(b => string.IsNullOrWhiteSpace(b.CoverImageUrl) || string.IsNullOrWhiteSpace(b.Description));
         }
         
         if (!string.IsNullOrWhiteSpace(search))
