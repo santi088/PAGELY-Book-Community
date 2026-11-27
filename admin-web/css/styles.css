@@ -626,7 +626,6 @@ tbody tr:last-child td {
     border-radius: var(--radius-lg);
     padding: var(--space-6);
     text-align: left;
-    box-shadow: var(--shadow-sm);
     transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
     cursor: pointer;
 }
