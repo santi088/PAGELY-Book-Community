@@ -626,12 +626,13 @@ tbody tr:last-child td {
     border-radius: var(--radius-lg);
     padding: var(--space-6);
     text-align: left;
+    box-shadow: 0 2px 4px rgba(74, 36, 17, 0.08), 0 8px 20px rgba(74, 36, 17, 0.10);
     transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
     cursor: pointer;
 }
 .stat-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(74, 36, 17, 0.16), 0 14px 32px rgba(74, 36, 17, 0.20);
+    box-shadow: 0 6px 12px rgba(74, 36, 17, 0.20), 0 16px 36px rgba(74, 36, 17, 0.24);
     border-color: var(--color-border-strong);
 }
 .stat-card h3 {
