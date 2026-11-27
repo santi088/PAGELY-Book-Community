@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reviews - Book Community Admin</title>
-    <link rel="stylesheet" href="../css/styles.css?v=20261029b">
+    <title>Reviews - Pagely Admin</title>
+    <link rel="stylesheet" href="../css/styles.css?v=20261126a">
 </head>
 <body>
     <div id="app"></div>
@@ -14,98 +14,237 @@
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
 
-        let currentPage = 1;
+        const PAGE_SIZE = 20;
+        const state = { page: 1, totalCount: 0, totalPages: 1, reviews: [], status: 'all', rating: 'all', search: '' };
+        const bookCache = new Map(); // bookId -> { author, cover }
+
+        const ICON_CHAT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>';
+        const ICON_STAR = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></svg>';
+        const ICON_EYE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 6.2A9.8 9.8 0 0112 6c5 0 8.5 4 9.5 6-.4.8-1.2 2-2.4 3.2M6.3 7.4C4.4 8.8 3.1 10.7 2.5 12 3.5 14 7 18 12 18c1.3 0 2.5-.3 3.6-.8"/></svg>';
+        const ICON_HEART = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5s-8-4.7-8-10.6C4 6.9 6.2 5 8.6 5c1.5 0 2.7.8 3.4 2 .7-1.2 1.9-2 3.4-2C17.8 5 20 6.9 20 9.9c0 5.9-8 10.6-8 10.6z"/></svg>';
 
         const ok = await auth.requireAdmin();
-        if (!ok) {
-        } else {
-            document.getElementById('app').innerHTML = renderLayout('Reviews', 'Browse all user reviews and their moderation status.');
+        if (ok) {
+            document.getElementById('app').innerHTML = renderLayout(
+                'Reviews',
+                'See what readers are saying, which book each review is about, and remove anything that does not belong.',
+                'COMMUNITY');
             initLayout();
-            loadReviews(1);
+            document.getElementById('pageContent').innerHTML = `
+                <div class="stat-row" id="stats"></div>
+                <div class="filters" id="filters">
+                    <button class="pill active" data-status="all">All</button>
+                    <button class="pill" data-status="visible">Visible</button>
+                    <button class="pill" data-status="hidden">Hidden</button>
+                    <button class="pill" data-status="deleted">Removed</button>
+                    <span class="spacer"></span>
+                    <select class="select-pill" id="ratingFilter" aria-label="Filter by rating">
+                        <option value="all">All ratings</option>
+                        <option value="5">5 stars</option>
+                        <option value="4">4 stars</option>
+                        <option value="3">3 stars</option>
+                        <option value="2">2 stars</option>
+                        <option value="1">1 star</option>
+                    </select>
+                </div>
+                <div class="searchbar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a7 7 0 100 14 7 7 0 000-14z"/><path d="M16.5 16.5L21 21"/></svg>
+                    <input type="search" id="reviewSearch" placeholder="Search by book, reader or review text…" autocomplete="off">
+                </div>
+                <div id="reviewList"></div>
+                <div id="reviewPager"></div>`;
+            bind();
+            load(1);
         }
 
-        async function loadReviews(page = 1) {
-            currentPage = page;
-            const content = document.getElementById('pageContent');
-            content.innerHTML = '<div class="loading">Loading reviews...</div>';
+        function bind() {
+            document.getElementById('filters').addEventListener('click', (e) => {
+                const pill = e.target.closest('[data-status]');
+                if (!pill) return;
+                state.status = pill.dataset.status;
+                document.querySelectorAll('#filters .pill').forEach(p => p.classList.toggle('active', p === pill));
+                render();
+            });
+            document.getElementById('ratingFilter').addEventListener('change', (e) => {
+                state.rating = e.target.value;
+                render();
+            });
+            document.getElementById('reviewSearch').addEventListener('input', (e) => {
+                state.search = e.target.value.trim().toLowerCase();
+                render();
+            });
+            document.getElementById('pageContent').addEventListener('click', (e) => {
+                const el = e.target.closest('[data-action]');
+                if (!el) return;
+                if (el.dataset.action === 'page') load(parseInt(el.dataset.page, 10));
+                if (el.dataset.action === 'remove') removeReview(el.dataset.id, el.dataset.book);
+            });
+        }
 
+        // ---- data ------------------------------------------------------------
+        const pick = (o, k) => o[k] ?? o[k[0].toUpperCase() + k.slice(1)];
+
+        async function load(page) {
+            state.page = page;
+            document.getElementById('reviewList').innerHTML =
+                '<div class="review-list">' + '<div class="skeleton" style="height:170px"></div>'.repeat(3) + '</div>';
             try {
-                const data = await api.get(`/api/admin/reviews?page=${page}&pageSize=20`);
-                const reviews = Array.isArray(data.items) ? data.items : [];
-                const totalCount = data.totalCount || 0;
-                const totalPages = data.totalPages || 1;
-
-                let html = `
-                    <div class="card">
-                        <div class="card-header">
-                            <h2>Reviews (${totalCount})</h2>
-                        </div>
-                        <div class="table-wrap">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Book</th>
-                                        <th>User</th>
-                                        <th>Rating</th>
-                                        <th>Review</th>
-                                        <th>Status</th>
-                                        <th>Likes</th>
-                                        <th>Created</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                `;
-
-                if (reviews.length === 0) {
-                    html += '<tr><td colspan="7" class="empty-state">No reviews found</td></tr>';
-                } else {
-                    for (const review of reviews) {
-                        const status = (review.isDeleted || review.IsDeleted) ? 'Deleted' :
-                            (review.isHidden || review.IsHidden) ? 'Hidden' : 'Visible';
-                        const text = review.reviewText || review.ReviewText || '';
-                        html += `
-                            <tr>
-                                <td>${escapeHtml(review.bookTitle || review.BookTitle || '')}</td>
-                                <td>${escapeHtml(review.userEmail || review.UserEmail || '')}</td>
-                                <td>${review.rating || review.Rating}/5</td>
-                                <td>${escapeHtml(text.length > 100 ? text.substring(0, 100) + '...' : text)}</td>
-                                <td>${status}</td>
-                                <td>${review.likeCount ?? review.LikeCount ?? 0}</td>
-                                <td>${new Date(review.createdAt || review.CreatedAt).toLocaleDateString()}</td>
-                            </tr>
-                        `;
-                    }
-                }
-
-                html += `
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="pagination">
-                            <button ${page <= 1 ? 'disabled' : ''} data-action="prevReviewPage" data-page="${page - 1}">Previous</button>
-                            <span>Page ${page} of ${totalPages}</span>
-                            <button ${page >= totalPages ? 'disabled' : ''} data-action="nextReviewPage" data-page="${page + 1}">Next</button>
-                        </div>
-                    </div>
-                `;
-
-                content.innerHTML = html;
-
-                content.querySelectorAll('[data-action="prevReviewPage"]').forEach(b => {
-                    b.addEventListener('click', () => loadReviews(parseInt(b.dataset.page)));
-                });
-                content.querySelectorAll('[data-action="nextReviewPage"]').forEach(b => {
-                    b.addEventListener('click', () => loadReviews(parseInt(b.dataset.page)));
-                });
+                const data = await api.get(`/api/admin/reviews?page=${page}&pageSize=${PAGE_SIZE}`);
+                state.reviews = (Array.isArray(data.items) ? data.items : (data.Items || [])).map(normalize);
+                state.totalCount = data.totalCount ?? data.TotalCount ?? 0;
+                state.totalPages = data.totalPages ?? data.TotalPages ?? 1;
+                await enrichBooks(state.reviews);
+                render();
             } catch (error) {
-                content.innerHTML = `<div class="alert alert-error">Error loading reviews: ${escapeHtml(error.message || 'Unknown error')}</div>`;
+                document.getElementById('reviewList').innerHTML =
+                    `<div class="alert alert-error">Could not load reviews: ${esc(error.message || 'Unknown error')}</div>`;
             }
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text || '';
-            return div.innerHTML;
+        function normalize(r) {
+            return {
+                id: pick(r, 'id'),
+                bookId: pick(r, 'bookId'),
+                bookTitle: pick(r, 'bookTitle') || 'Untitled book',
+                bookAuthor: pick(r, 'bookAuthor') || '',
+                bookCover: pick(r, 'bookCoverImageUrl') || '',
+                user: pick(r, 'userEmail') || 'Unknown reader',
+                rating: Number(pick(r, 'rating')) || 0,
+                text: pick(r, 'reviewText') || '',
+                likes: pick(r, 'likeCount') ?? 0,
+                hidden: !!pick(r, 'isHidden'),
+                deleted: !!pick(r, 'isDeleted'),
+                created: pick(r, 'createdAt')
+            };
+        }
+
+        // Older API builds do not send the author or cover: look them up once per book.
+        async function enrichBooks(reviews) {
+            const missing = [...new Set(reviews.filter(r => (!r.bookAuthor || !r.bookCover) && r.bookId && !bookCache.has(r.bookId)).map(r => r.bookId))];
+            await Promise.all(missing.map(async (id) => {
+                try {
+                    const b = await api.get(`/api/books/${id}`);
+                    bookCache.set(id, { author: b.author || b.Author || '', cover: b.coverImageUrl || b.CoverImageUrl || '' });
+                } catch { bookCache.set(id, { author: '', cover: '' }); }
+            }));
+            for (const r of reviews) {
+                const c = bookCache.get(r.bookId);
+                if (c) { r.bookAuthor = r.bookAuthor || c.author; r.bookCover = r.bookCover || c.cover; }
+            }
+        }
+
+        // ---- view ------------------------------------------------------------
+        function esc(text) {
+            const d = document.createElement('div');
+            d.textContent = text == null ? '' : String(text);
+            return d.innerHTML;
+        }
+
+        function starsHtml(n) {
+            let s = '';
+            for (let i = 1; i <= 5; i++) {
+                s += `<svg class="${i <= n ? '' : 'off'}" width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></svg>`;
+            }
+            return `<span class="stars" role="img" aria-label="${n} out of 5">${s}<b>${n}.0</b></span>`;
+        }
+
+        function statusOf(r) { return r.deleted ? 'deleted' : r.hidden ? 'hidden' : 'visible'; }
+
+        function timeAgo(iso) {
+            const d = new Date(iso);
+            if (isNaN(d)) return '';
+            const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+            if (days <= 0) return 'Today';
+            if (days === 1) return 'Yesterday';
+            if (days < 30) return `${days} days ago`;
+            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        function renderStats() {
+            const list = state.reviews;
+            const avg = list.length ? (list.reduce((a, r) => a + r.rating, 0) / list.length) : 0;
+            const flagged = list.filter(r => r.hidden || r.deleted).length;
+            document.getElementById('stats').innerHTML = `
+                <div class="mini-stat"><div class="icon-tile">${ICON_CHAT}</div><div><strong>${state.totalCount}</strong><span>Total reviews</span></div></div>
+                <div class="mini-stat"><div class="icon-tile">${ICON_STAR}</div><div><strong>${list.length ? avg.toFixed(1) : '–'}</strong><span>Average rating · this page</span></div></div>
+                <div class="mini-stat"><div class="icon-tile">${ICON_EYE}</div><div><strong>${flagged}</strong><span>Hidden or removed · this page</span></div></div>`;
+        }
+
+        function render() {
+            renderStats();
+            const q = state.search;
+            const list = state.reviews.filter(r =>
+                (state.status === 'all' || statusOf(r) === state.status) &&
+                (state.rating === 'all' || r.rating === Number(state.rating)) &&
+                (!q || (r.bookTitle + ' ' + r.bookAuthor + ' ' + r.user + ' ' + r.text).toLowerCase().includes(q)));
+
+            const el = document.getElementById('reviewList');
+            if (!state.reviews.length) {
+                el.innerHTML = '<div class="empty-state card"><strong>No reviews yet</strong>Reviews written by readers will show up here.</div>';
+            } else if (!list.length) {
+                el.innerHTML = '<div class="empty-state card"><strong>No reviews match these filters</strong>Try a different status, rating or search.</div>';
+            } else {
+                el.innerHTML = `<div class="toolbar"><span class="result-count">Showing ${list.length} of ${state.reviews.length} on this page</span></div>
+                    <div class="review-list">${list.map(cardHtml).join('')}</div>`;
+            }
+
+            const pager = document.getElementById('reviewPager');
+            pager.innerHTML = state.totalPages > 1 ? `
+                <div class="pagination">
+                    <button ${state.page <= 1 ? 'disabled' : ''} data-action="page" data-page="${state.page - 1}">Previous</button>
+                    <span>Page ${state.page} of ${state.totalPages}</span>
+                    <button ${state.page >= state.totalPages ? 'disabled' : ''} data-action="page" data-page="${state.page + 1}">Next</button>
+                </div>` : '';
+        }
+
+        function cardHtml(r) {
+            const st = statusOf(r);
+            const initial = esc((r.bookTitle || '?').trim().charAt(0).toUpperCase());
+            const cover = /^https?:\/\//i.test(r.bookCover)
+                ? `<img src="${esc(r.bookCover)}" alt="" loading="lazy" onerror="this.remove()">` : '';
+            const badge = st === 'visible' ? '<span class="badge badge-success">Visible</span>'
+                : st === 'hidden' ? '<span class="badge badge-warning">Hidden</span>'
+                : '<span class="badge badge-danger">Removed</span>';
+            const who = r.user.split('@')[0] || r.user;
+            return `
+                <article class="review-card is-${st}">
+                    <div class="cover"><span aria-hidden="true">${initial}</span>${cover}</div>
+                    <div class="review-main">
+                        <div class="review-head">
+                            <div class="review-book">
+                                <h3>${esc(r.bookTitle)}</h3>
+                                <div class="author">${r.bookAuthor ? 'by ' + esc(r.bookAuthor) : '&nbsp;'}</div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:.75rem">${starsHtml(r.rating)}${badge}</div>
+                        </div>
+                        ${r.text
+                            ? `<div class="review-text">${esc(r.text)}</div>`
+                            : '<div class="review-text empty">Rated without a written review.</div>'}
+                        <div class="review-foot">
+                            <div class="reviewer">
+                                <div class="avatar" aria-hidden="true">${esc(who.charAt(0).toUpperCase())}</div>
+                                <div style="min-width:0">
+                                    <div class="who" title="${esc(r.user)}">${esc(r.user)}</div>
+                                    <div class="when">${esc(timeAgo(r.created))}</div>
+                                </div>
+                            </div>
+                            <div class="right">
+                                <span class="likes" title="Likes">${ICON_HEART} ${r.likes}</span>
+                                ${st === 'deleted' ? '' : `<button class="btn btn-sm btn-ghost" style="color:var(--danger)" data-action="remove" data-id="${esc(r.id)}" data-book="${esc(r.bookTitle)}">Remove</button>`}
+                            </div>
+                        </div>
+                    </div>
+                </article>`;
+        }
+
+        async function removeReview(id, book) {
+            if (!confirm(`Remove this review of "${book}"? Readers will no longer see it.`)) return;
+            try {
+                await api.delete(`/api/admin/reviews/${id}`);
+                await load(state.page);
+            } catch (error) {
+                alert('Could not remove review: ' + error.message);
+            }
         }
     </script>
 </body>

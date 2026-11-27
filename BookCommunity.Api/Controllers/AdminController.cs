@@ -324,6 +324,8 @@ public class AdminController : ControllerBase
                 UserEmail = r.User.Email ?? "",
                 BookId = r.BookId,
                 BookTitle = r.Book.Title,
+                BookAuthor = r.Book.Author,
+                BookCoverImageUrl = r.Book.CoverImageUrl,
                 Rating = r.Rating,
                 ReviewText = r.ReviewText,
                 LikeCount = r.LikeCount,

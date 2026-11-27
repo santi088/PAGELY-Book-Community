@@ -7,6 +7,8 @@ public class AdminReviewDto
     public string UserEmail { get; set; } = string.Empty;
     public Guid BookId { get; set; }
     public string BookTitle { get; set; } = string.Empty;
+    public string BookAuthor { get; set; } = string.Empty;
+    public string? BookCoverImageUrl { get; set; }
     public int Rating { get; set; }
     public string? ReviewText { get; set; }
     public int LikeCount { get; set; }

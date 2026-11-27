@@ -40,11 +40,11 @@ Use an admin account created in the backend (via seeding or direct DB/registrati
 
 ## Pages
 - Dashboard - Stats overview
-- Books - List books (view)
+- Books - Two tabs: **Imported Books** (search and manage the local catalog) and **Search Open Library** (find and import new books)
 - Genres - List/manage genres
 - Users - List users, suspend/reactivate
 - Reports - View and moderate reports
-- Reviews - List all reviews (read-only; moderation via Reports)
+- Reviews - Review cards showing the book (cover, title, author), rating, reader and status, with filters and Remove
 
 ## Notes
 - All data comes from the real API
