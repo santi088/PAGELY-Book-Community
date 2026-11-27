@@ -44,6 +44,11 @@ public class AdminBooksImportControllerTests : IClassFixture<WebApplicationFacto
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtKey))
                     };
                 });
+                // Use isolated in-memory database so tests never touch the real Postgres DB
+                foreach (var d in services.Where(d => d.ServiceType == typeof(ApplicationDbContext) || d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>)).ToList())
+                    services.Remove(d);
+                services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseInMemoryDatabase("ImportTestDb"));
             });
         });
     }
@@ -376,6 +381,11 @@ public class AdminBooksImportControllerTests : IClassFixture<WebApplicationFacto
                 });
                 // Register the mock service as a singleton to override HttpClient registration
                 services.AddSingleton(mockService);
+                // Use isolated in-memory database so tests never touch the real Postgres DB
+                foreach (var d in services.Where(d => d.ServiceType == typeof(ApplicationDbContext) || d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>)).ToList())
+                    services.Remove(d);
+                services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseInMemoryDatabase("ImportTestDb"));
             });
         });
         return factory.CreateClient();

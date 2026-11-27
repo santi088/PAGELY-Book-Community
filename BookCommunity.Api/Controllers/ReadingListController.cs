@@ -82,8 +82,18 @@ public class ReadingListController : ControllerBase
         });
     }
     
+    private async Task<Book?> ResolveBookAsync(string bookId)
+    {
+        if (Guid.TryParse(bookId, out var guid))
+        {
+            return await _context.Books.FindAsync(guid);
+        }
+        return await _context.Books
+            .FirstOrDefaultAsync(b => b.ExternalId == bookId);
+    }
+
     [HttpPut("/api/books/{bookId}/reading-list")]
-    public async Task<IActionResult> AddOrUpdateReadingList(Guid bookId, [FromBody] UpdateReadingListDto dto)
+    public async Task<IActionResult> AddOrUpdateReadingList(string bookId, [FromBody] UpdateReadingListDto dto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -96,12 +106,14 @@ public class ReadingListController : ControllerBase
         if (currentUser == null || currentUser.IsSuspended)
             return Forbid();
 
-        var book = await _context.Books.FindAsync(bookId);
+        var book = await ResolveBookAsync(bookId);
         if (book == null || !book.IsActive)
             return NotFound();
         
+        var resolvedBookId = book.Id;
+        
         var existing = await _context.ReadingListEntries
-            .FirstOrDefaultAsync(rle => rle.UserId == userId && rle.BookId == bookId);
+            .FirstOrDefaultAsync(rle => rle.UserId == userId && rle.BookId == resolvedBookId);
         
         if (existing != null)
         {
@@ -114,7 +126,7 @@ public class ReadingListController : ControllerBase
         var entry = new ReadingListEntry
         {
             UserId = userId,
-            BookId = bookId,
+            BookId = resolvedBookId,
             Status = dto.Status,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -126,7 +138,7 @@ public class ReadingListController : ControllerBase
     }
     
     [HttpDelete("/api/books/{bookId}/reading-list")]
-    public async Task<IActionResult> RemoveFromReadingList(Guid bookId)
+    public async Task<IActionResult> RemoveFromReadingList(string bookId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
@@ -136,8 +148,12 @@ public class ReadingListController : ControllerBase
         if (currentUser == null || currentUser.IsSuspended)
             return Forbid();
 
+        var book = await ResolveBookAsync(bookId);
+        if (book == null)
+            return NotFound();
+
         var entry = await _context.ReadingListEntries
-            .FirstOrDefaultAsync(rle => rle.UserId == userId && rle.BookId == bookId);
+            .FirstOrDefaultAsync(rle => rle.UserId == userId && rle.BookId == book.Id);
         
         if (entry == null)
             return NotFound();

@@ -142,7 +142,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevCors", policy =>
     {
-        policy.WithOrigins("http://localhost:8080", "http://127.0.0.1:8080")
+        policy.WithOrigins("http://localhost:8080", "http://127.0.0.1:8080", "http://192.168.100.166:5242")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });

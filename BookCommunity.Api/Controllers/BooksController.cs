@@ -1,4 +1,5 @@
 using BookCommunity.Api.DTOs.Books;
+using BookCommunity.Core.Entities;
 using BookCommunity.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -95,15 +96,26 @@ public class BooksController : ControllerBase
         });
     }
     
-    [HttpGet("{id}")]
-    public async Task<ActionResult<BookDto>> GetBook(Guid id)
+    private async Task<Book?> ResolveBookAsync(string bookId)
     {
-        var book = await _context.Books
+        if (Guid.TryParse(bookId, out var guid))
+        {
+            return await _context.Books
+                .Include(b => b.BookGenres)
+                .ThenInclude(bg => bg.Genre)
+                .FirstOrDefaultAsync(b => b.Id == guid);
+        }
+        return await _context.Books
             .Include(b => b.BookGenres)
             .ThenInclude(bg => bg.Genre)
-            .FirstOrDefaultAsync(b => b.Id == id && b.IsActive);
-        
-        if (book == null)
+            .FirstOrDefaultAsync(b => b.ExternalId == bookId);
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<BookDto>> GetBook(string id)
+    {
+        var book = await ResolveBookAsync(id);
+        if (book == null || !book.IsActive)
             return NotFound();
         
         var dto = new BookDto

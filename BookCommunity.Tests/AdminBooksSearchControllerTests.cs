@@ -3,9 +3,11 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using BookCommunity.Api.DTOs.Books;
+using BookCommunity.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Xunit;
@@ -39,6 +41,11 @@ public class AdminBooksSearchControllerTests : IClassFixture<WebApplicationFacto
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtKey))
                     };
                 });
+                // Use isolated in-memory database so tests never touch the real Postgres DB
+                foreach (var d in services.Where(d => d.ServiceType == typeof(ApplicationDbContext) || d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>)).ToList())
+                    services.Remove(d);
+                services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseInMemoryDatabase("SearchTestDb"));
             });
         });
     }

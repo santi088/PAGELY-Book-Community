@@ -8,6 +8,13 @@ public class DbSeeder
 {
     public static async Task SeedAsync(ApplicationDbContext context, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager)
     {
+        // Only seed if the database is completely empty (no users)
+        if (await userManager.Users.AnyAsync())
+        {
+            // Database already has users - do nothing, preserve all existing data
+            return;
+        }
+
         // Create roles
         if (!await roleManager.RoleExistsAsync("Admin"))
         {
@@ -18,35 +25,22 @@ public class DbSeeder
             await roleManager.CreateAsync(new IdentityRole("User"));
         }
         
-        // Create admin user if not exists (from config/env)
+        // Create admin user (only runs when no users exist at all)
         var adminEmail = Environment.GetEnvironmentVariable("Admin__Email") ?? "admin@bookcommunity.local";
         var adminPassword = Environment.GetEnvironmentVariable("Admin__Password");
         
         if (!string.IsNullOrEmpty(adminPassword))
         {
-            var adminUser = await userManager.FindByEmailAsync(adminEmail);
-            if (adminUser == null)
+            var adminUser = new ApplicationUser
             {
-                adminUser = new ApplicationUser
-                {
-                    UserName = adminEmail,
-                    Email = adminEmail,
-                    EmailConfirmed = true,
-                    FirstName = "Admin",
-                    LastName = "User"
-                };
-                await userManager.CreateAsync(adminUser, adminPassword);
-                await userManager.AddToRoleAsync(adminUser, "Admin");
-            }
-            else
-            {
-                await userManager.RemovePasswordAsync(adminUser);
-                await userManager.AddPasswordAsync(adminUser, adminPassword);
-                if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
-                {
-                    await userManager.AddToRoleAsync(adminUser, "Admin");
-                }
-            }
+                UserName = adminEmail,
+                Email = adminEmail,
+                EmailConfirmed = true,
+                FirstName = "Admin",
+                LastName = "User"
+            };
+            await userManager.CreateAsync(adminUser, adminPassword);
+            await userManager.AddToRoleAsync(adminUser, "Admin");
         }
         
         // Seed genres
