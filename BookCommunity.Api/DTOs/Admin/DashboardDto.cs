@@ -94,3 +94,23 @@ public class ReportedItemSummary
     public string Name { get; set; } = string.Empty;
     public int ReportCount { get; set; }
 }
+
+// Trends endpoint DTOs
+public class DashboardTrendDto
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public string TimeZone { get; set; } = "Asia/Manila";
+    public int EarliestYear { get; set; }
+    public List<WeekTrend> Weeks { get; set; } = new();
+}
+
+public class WeekTrend
+{
+    public int Index { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public int NewUsers { get; set; }
+    public int NewReviews { get; set; }
+}

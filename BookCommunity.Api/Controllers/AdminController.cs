@@ -847,6 +847,153 @@ var users = await _userManager.Users.ToListAsync();
 
         return Ok(result);
     }
+
+    [HttpGet("dashboard/trends")]
+    public async Task<ActionResult<DashboardTrendDto>> GetDashboardTrends(
+        [FromQuery] int year,
+        [FromQuery] int month)
+    {
+        // Validate year/month
+        if (year < 1 || year > 9999 || month < 1 || month > 12)
+            return BadRequest(new { message = "Invalid year or month" });
+
+        var selectedMonth = new DateTime(year, month, 1);
+        var today = DateTime.UtcNow.Date;
+
+        // Reject future months
+        var firstDayOfCurrentMonth = new DateTime(today.Year, today.Month, 1);
+        if (selectedMonth > firstDayOfCurrentMonth)
+        {
+            // Return zeros for future month
+            var futureEarliestYear = await GetEarliestYearAsync();
+            var futureWeeks = BuildWeekBuckets(year, month, new Dictionary<int, int>(), new Dictionary<int, int>());
+            return Ok(new DashboardTrendDto
+            {
+                Year = year,
+                Month = month,
+                TimeZone = "Asia/Manila",
+                EarliestYear = futureEarliestYear,
+                Weeks = futureWeeks
+            });
+        }
+
+        // Earliest year from reviews or users
+        var earliestYear = await GetEarliestYearAsync();
+
+        // Reporting time zone: Asia/Manila (UTC+8)
+        var tz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila");
+
+        // Convert month boundaries to UTC for querying
+        var monthStartLocal = new DateTime(year, month, 1);
+        var monthEndLocal = monthStartLocal.AddMonths(1).AddDays(-1);
+
+        // Convert to UTC for DB query
+        var monthStartUtc = TimeZoneInfo.ConvertTimeToUtc(monthStartLocal, tz);
+        var monthEndUtc = TimeZoneInfo.ConvertTimeToUtc(monthEndLocal.AddDays(1).AddTicks(-1), tz);
+
+        // Query reviews created in this month (converted to Manila time for bucketing)
+        // Normalize DateTimeKind to Utc before converting to Manila time,
+        // since EF Core may not preserve Kind when round-tripping through the database.
+        var reviewsInMonth = await _context.Reviews
+            .Where(r => r.CreatedAt >= monthStartUtc && r.CreatedAt <= monthEndUtc)
+            .Select(r => r.CreatedAt)
+            .ToListAsync();
+
+        // Query users created in this month
+        var usersInMonth = await _userManager.Users
+            .Where(u => u.CreatedAt >= monthStartUtc && u.CreatedAt <= monthEndUtc)
+            .Select(u => u.CreatedAt)
+            .ToListAsync();
+
+        // Bucket by day-of-month (1-7, 8-14, 15-21, 22-28, 29-end)
+        var reviewBuckets = reviewsInMonth
+            .Select(utc => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz).Date.Day)
+            .GroupBy(d => GetBucketIndex(d, DateTime.DaysInMonth(year, month)))
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var userBuckets = usersInMonth
+            .Select(utc => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz).Date.Day)
+            .GroupBy(d => GetBucketIndex(d, DateTime.DaysInMonth(year, month)))
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var weeks = BuildWeekBuckets(year, month, reviewBuckets, userBuckets);
+
+        return Ok(new DashboardTrendDto
+        {
+            Year = year,
+            Month = month,
+            TimeZone = "Asia/Manila",
+            EarliestYear = earliestYear,
+            Weeks = weeks
+        });
+    }
+
+    private async Task<int> GetEarliestYearAsync()
+    {
+        var reviewYear = await _context.Reviews
+            .OrderBy(r => r.CreatedAt)
+            .Select(r => r.CreatedAt.Year)
+            .FirstOrDefaultAsync();
+
+        var userYear = await _userManager.Users
+            .OrderBy(u => u.CreatedAt)
+            .Select(u => u.CreatedAt.Year)
+            .FirstOrDefaultAsync();
+
+        var years = new List<int> { reviewYear, userYear }.Where(y => y > 0).ToList();
+        return years.Any() ? years.Min() : DateTime.UtcNow.Year;
+    }
+
+    private static int GetBucketIndex(int day, int daysInMonth)
+    {
+        if (day <= 7) return 0;
+        if (day <= 14) return 1;
+        if (day <= 21) return 2;
+        if (day <= 28) return 3;
+        return 4; // 29-end of month
+    }
+
+    private static List<WeekTrend> BuildWeekBuckets(int year, int month, Dictionary<int, int> reviewBuckets, Dictionary<int, int> userBuckets)
+    {
+        var daysInMonth = DateTime.DaysInMonth(year, month);
+        var weeks = new List<WeekTrend>();
+
+        var bucketRanges = new[]
+        {
+            new { Start = 1, End = 7 },
+            new { Start = 8, End = 14 },
+            new { Start = 15, End = 21 },
+            new { Start = 22, End = 28 },
+            new { Start = 29, End = daysInMonth }
+        };
+
+        var weekIndex = 0;
+        foreach (var range in bucketRanges)
+        {
+            if (range.Start > daysInMonth) break;
+
+            var endDay = Math.Min(range.End, daysInMonth);
+            var startDate = new DateTime(year, month, range.Start);
+            var endDate = new DateTime(year, month, endDay);
+
+            var label = $"Week {weekIndex + 1}\n{startDate:MMM d}-{endDay}";
+            if (weekIndex == 4 && daysInMonth <= 28)
+                break;
+
+            weeks.Add(new WeekTrend
+            {
+                Index = weekIndex,
+                Label = label,
+                StartDate = startDate,
+                EndDate = endDate,
+                NewReviews = reviewBuckets.TryGetValue(weekIndex, out var r) ? r : 0,
+                NewUsers = userBuckets.TryGetValue(weekIndex, out var u) ? u : 0
+            });
+            weekIndex++;
+        }
+
+        return weeks;
+    }
 }
 
 // Helper DTOs for dashboard queries (internal use only)
