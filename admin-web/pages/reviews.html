@@ -165,9 +165,9 @@
             const avg = reviews.length ? (reviews.reduce((a, r) => a + r.rating, 0) / reviews.length) : 0;
             const flagged = reviews.filter(r => r.hidden || r.deleted).length;
             document.getElementById('stats').innerHTML = `
-                <div class="mini-stat"><div class="icon-tile">${ICON_CHAT}</div><div><strong>${totalCount}</strong><span>Total reviews</span></div></div>
-                <div class="mini-stat"><div class="icon-tile">${ICON_STAR}</div><div><strong>${reviews.length ? avg.toFixed(1) : '–'}</strong><span>Average rating</span></div></div>
-                <div class="mini-stat"><div class="icon-tile">${ICON_EYE}</div><div><strong>${flagged}</strong><span>Hidden or removed</span></div></div>`;
+                <div class="mini-stat card-depth"><div class="icon-tile">${ICON_CHAT}</div><div><strong>${totalCount}</strong><span>Total reviews</span></div></div>
+                <div class="mini-stat card-depth"><div class="icon-tile">${ICON_STAR}</div><div><strong>${reviews.length ? avg.toFixed(1) : '–'}</strong><span>Average rating</span></div></div>
+                <div class="mini-stat card-depth"><div class="icon-tile">${ICON_EYE}</div><div><strong>${flagged}</strong><span>Hidden or removed</span></div></div>`;
         }
 
         function renderReviews(reviews, totalCount, pageNum) {
