@@ -55,12 +55,6 @@
             store.subscribe(() => {
                 loadCatalog(store.get().page);
             });
-
-            const initial = location.hash === '#openlibrary' ? 'openlibrary' : 'catalog';
-            switchTab(initial, false);
-            window.addEventListener('hashchange', () => {
-                switchTab(location.hash === '#openlibrary' ? 'openlibrary' : 'catalog', false);
-            });
         }
 
         // ---- layout --------------------------------------------------------
@@ -540,8 +534,7 @@
             ol: { query: '', candidates: [], status: 'idle', requestId: 0, importing: new Set(), message: '' }
         };
 
-        document.getElementById('app').innerHTML = shellHtml();
-        document.getElementById('pageContent').innerHTML = '';
+        document.getElementById('pageContent').innerHTML = shellHtml();
 
         // Bind shell events
         const root = document.getElementById('pageContent');
@@ -574,6 +567,11 @@
             document.getElementById('importClearBtn').hidden = !document.getElementById('importQuery').value;
         });
 
+        const initial = location.hash === '#openlibrary' ? 'openlibrary' : 'catalog';
+        switchTab(initial, false);
+        window.addEventListener('hashchange', () => {
+            switchTab(location.hash === '#openlibrary' ? 'openlibrary' : 'catalog', false);
+        });
         renderOpenLibrary();
     </script>
 </body>

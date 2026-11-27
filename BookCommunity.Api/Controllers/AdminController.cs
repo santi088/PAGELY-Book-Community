@@ -537,7 +537,8 @@ public class AdminController : ControllerBase
     public async Task<ActionResult<List<string>>> GetRoles()
     {
         var roles = new HashSet<string>();
-        foreach (var user in _userManager.Users)
+        var users = await _userManager.Users.ToListAsync();
+        foreach (var user in users)
         {
             var userRoles = await _userManager.GetRolesAsync(user);
             foreach (var r in userRoles)
