@@ -74,6 +74,7 @@
                     const params = new URLSearchParams();
                     if (s.search) params.set('search', s.search);
                     if (s.sort) params.set('sort', s.sort);
+                    params.set('pageSize', '100'); // max allowed by API; ensures all users are fetched
                     const result = await api.get(`/api/admin/users?${params.toString()}`);
                     userList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
                     totalCount = userList.length;
