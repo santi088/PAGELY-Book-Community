@@ -446,7 +446,7 @@
                 }
 
                 // X labels (horizontal, no rotation)
-                labelsHtml += `<text x="${x + barW / 2}" y="${baseY + 18}" font-size="11" fill="#7D6757" text-anchor="middle" font-weight="600">${w.label.replace('\\n', ' ')}</text>`;
+                labelsHtml += `<text x="${x + barW / 2}" y="${baseY + 18}" font-size="11" fill="#7D6757" text-anchor="middle" font-weight="600">${w.label.replace('\n', ' ')}</text>`;
 
                 hiddenTable += `<tr><td>${w.label.replace('\\n', ' ')}</td><td>${w.newUsers}</td><td>${w.newReviews}</td></tr>`;
             });
@@ -516,9 +516,9 @@
                     opt.value = m;
                     opt.textContent = monthNames[m - 1];
                     if (m === selMonth) opt.selected = true;
-                    // Disable future months
-                    const today = new Date();
-                    if (y > today.getFullYear() || (y === today.getFullYear() && m > today.getMonth() + 1)) {
+                // Disable future months
+                const today = new Date();
+                if (selYear > today.getFullYear() || (selYear === today.getFullYear() && m > today.getMonth() + 1)) {
                         opt.disabled = true;
                     }
                     monthSel.appendChild(opt);
