@@ -10,9 +10,9 @@
     <div id="app"></div>
 
     <script type="module">
-        import { auth } from '../js/auth.js?v=7';
-        import { api } from '../js/api.js?v=7';
-        import { renderLayout, initLayout, updateSidebarUserInfo } from '../js/layout.js?v=7';
+        import { auth } from '../js/auth.js?v=8';
+        import { api } from '../js/api.js?v=8';
+        import { renderLayout, initLayout, updateSidebarUserInfo } from '../js/layout.js?v=8';
 
         let dashboard = null;
         let selYear = new Date().getFullYear();
@@ -163,7 +163,7 @@
                         <div class="stat-card" style="margin-top:var(--space-4);">
                             <div class="chart-card" id="trendChartCard">
                                 <div class="chart-wrapper" id="chartWrapper">
-                                    <!-- Chart rendered here -->
+                                    ${renderTrendChart(d.weeks, selYear, selMonth)}
                                 </div>
                             </div>
                         </div>
@@ -448,7 +448,7 @@
                 // X labels (horizontal, no rotation)
                 labelsHtml += `<text x="${x + barW / 2}" y="${baseY + 18}" font-size="11" fill="#7D6757" text-anchor="middle" font-weight="600">${w.label.replace('\n', ' ')}</text>`;
 
-                hiddenTable += `<tr><td>${w.label.replace('\\n', ' ')}</td><td>${w.newUsers}</td><td>${w.newReviews}</td></tr>`;
+                hiddenTable += `<tr><td>${w.label.replace('\n', ' ')}</td><td>${w.newUsers}</td><td>${w.newReviews}</td></tr>`;
             });
 
             hiddenTable += '</tbody></table>';
