@@ -412,13 +412,13 @@
             const monthName = new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
             const allZero = weeks.every(w => w.newUsers === 0 && w.newReviews === 0);
             const maxVal = Math.max(...weeks.map(w => Math.max(w.newUsers, w.newReviews)), 1);
-            const barH = 120;
-            const gap = 36;
+            const barH = 150;
+            const gap = 40;
             const barW = 44;
 
             // Build SVG
             const svgW = Math.max(480, weeks.length * (barW + gap) + 100);
-            const svgH = 160;
+            const svgH = 190;
 
             let barsHtml = '';
             let labelsHtml = '';
@@ -449,7 +449,8 @@
                 }
 
                 // X labels (horizontal, no rotation)
-                labelsHtml += `<text x="${x + barW / 2}" y="${baseY + 18}" font-size="10" fill="#7D6757" text-anchor="middle" font-weight="600">${w.label}</text>`;
+                const weekNum = String(w.label).replace(/\D/g, '') || (i + 1).toString();
+                labelsHtml += `<text x="${x + barW / 2}" y="${baseY + 22}" font-size="11" fill="#7D6757" text-anchor="middle" font-weight="600">${weekNum}</text>`;
 
                 hiddenTable += `<tr><td>${w.label}</td><td>${w.newUsers}</td><td>${w.newReviews}</td></tr>`;
             });
