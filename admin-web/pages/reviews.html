@@ -109,7 +109,7 @@
             // Wire status pill clicks
             filtersEl.querySelectorAll('[data-status]').forEach(b => {
                 b.addEventListener('click', () => {
-                    store.setFilter('status', b.dataset.status);
+                    store.setFilter('status', b.dataset.status === 'all' ? '' : b.dataset.status);
                 });
             });
 
