@@ -9,6 +9,7 @@ public class ReportDto
     public string ReporterEmail { get; set; } = string.Empty;
     public Guid ReviewId { get; set; }
     public string? ReviewText { get; set; }
+    public string? BookTitle { get; set; }
     public int ReviewRating { get; set; }
     public string Reason { get; set; } = string.Empty;
     public string? Details { get; set; }

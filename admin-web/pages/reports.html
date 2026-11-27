@@ -13,6 +13,7 @@
         import { auth } from '../js/auth.js';
         import { api } from '../js/api.js';
         import { renderLayout, initLayout } from '../js/layout.js';
+        import { renderToolbar, renderPagination } from '../js/components.js';
 
         const ok = await auth.requireAdmin();
         if (!ok) {
@@ -22,24 +23,66 @@
             loadReports();
         }
 
+        // Filter/sort state persisted across modal opens
+        let currentState = {
+            search: '',
+            reason: '',
+            sort: 'recent',
+            page: 1,
+            pageSize: 20
+        };
+
         async function loadReports() {
             const content = document.getElementById('pageContent');
             content.innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                const reports = await api.get('/api/admin/reports');
-                const reportList = Array.isArray(reports) ? reports : [];
+                const params = new URLSearchParams();
+                if (currentState.search) params.set('search', currentState.search);
+                if (currentState.reason) params.set('reason', currentState.reason);
+                if (currentState.sort && currentState.sort !== 'recent') params.set('sort', currentState.sort);
+                params.set('page', currentState.page.toString());
+                params.set('pageSize', currentState.pageSize.toString());
+
+                const result = await api.get(`/api/admin/reports?${params.toString()}`);
+                const reportList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
+                const totalCount = result.totalCount ?? reportList.length;
+                const totalPages = result.totalPages ?? 1;
+                const page = result.page ?? 1;
 
                 let html = `
                     <div class="card">
                         <div class="card-header">
-                            <h2>Reports (${reportList.length})</h2>
+                            <h2>Reports (${totalCount})</h2>
                         </div>
+                        ${renderToolbar({ 
+                            searchPlaceholder: 'Search reports...', 
+                            searchValue: currentState.search,
+                            filters: [{ 
+                                key: 'reason', 
+                                options: [
+                                    { value: '', label: 'All reasons' },
+                                    { value: 'Misinformation', label: 'Misinformation' },
+                                    { value: 'Inappropriate Content', label: 'Inappropriate Content' },
+                                    { value: 'Spam', label: 'Spam' }
+                                ],
+                                value: currentState.reason
+                            }], 
+                            sortOptions: [
+                                { value: 'recent', label: 'Most recent' },
+                                { value: 'oldest', label: 'Oldest' },
+                                { value: 'reason', label: 'Reason A-Z' },
+                                { value: 'reviewer', label: 'Reviewer A-Z' },
+                                { value: 'book', label: 'Book title A-Z' }
+                            ],
+                            sortValue: currentState.sort
+                        })}
                         <div class="table-wrap">
                             <table>
                                 <thead>
                                     <tr>
                                         <th>Reason</th>
+                                        <th>Book</th>
                                         <th>Review</th>
                                         <th>Status</th>
                                         <th>Reporter</th>
@@ -51,7 +94,7 @@
                 `;
 
                 if (reportList.length === 0) {
-                    html += '<tr><td colspan="6" class="empty-state">No reports found</td></tr>';
+                    html += '<tr><td colspan="7" class="empty-state">No reports found</td></tr>';
                 } else {
                     for (const report of reportList) {
                         const id = report.id || report.Id;
@@ -64,6 +107,7 @@
                         html += `
                             <tr>
                                 <td>${escapeHtml(report.reason || report.Reason)}</td>
+                                <td>${escapeHtml(report.bookTitle || report.BookTitle || 'Book unavailable')}</td>
                                 <td>${escapeHtml(reviewText.length > 80 ? reviewText.substring(0, 80) + '...' : reviewText)}</td>
                                 <td><span class="status-${statusClass}">${statusLabel}</span></td>
                                 <td>${escapeHtml(report.reporterEmail || report.ReporterEmail)}</td>
@@ -86,6 +130,7 @@
                             </table>
                         </div>
                     </div>
+                    ${renderPagination(page, currentState.pageSize, totalCount)}
 
                     <div id="reportModal" class="modal">
                         <div class="modal-content modal-sm">
@@ -100,6 +145,49 @@
 
                 content.innerHTML = html;
 
+                // Wire toolbar events
+                const searchInput = content.querySelector('.toolbar-search');
+                const reasonFilter = content.querySelector('.toolbar-filter[data-key="reason"]');
+                const sortSelect = content.querySelector('.toolbar-sort');
+                const resetBtn = content.querySelector('.toolbar-reset');
+
+                if (searchInput) {
+                    searchInput.addEventListener('input', debounce(() => {
+                        currentState.search = searchInput.value;
+                        currentState.page = 1;
+                        loadReports();
+                    }, 300));
+                }
+                if (reasonFilter) {
+                    reasonFilter.addEventListener('change', () => {
+                        currentState.reason = reasonFilter.value;
+                        currentState.page = 1;
+                        loadReports();
+                    });
+                }
+                if (sortSelect) {
+                    sortSelect.addEventListener('change', () => {
+                        currentState.sort = sortSelect.value;
+                        currentState.page = 1;
+                        loadReports();
+                    });
+                }
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', () => {
+                        currentState = { search: '', reason: '', sort: 'recent', page: 1, pageSize: 20 };
+                        loadReports();
+                    });
+                }
+
+                // Pagination
+                content.querySelectorAll('.pg-prev').forEach(b => b.addEventListener('click', () => {
+                    if (currentState.page > 1) { currentState.page--; loadReports(); }
+                }));
+                content.querySelectorAll('.pg-next').forEach(b => b.addEventListener('click', () => {
+                    if (currentState.page < totalPages) { currentState.page++; loadReports(); }
+                }));
+
+                // Action buttons
                 const reportMap = new Map(reportList.map(r => [String(r.id || r.Id), r]));
                 content.querySelectorAll('[data-action="viewReport"]').forEach(b => {
                     b.addEventListener('click', () => viewReport(reportMap.get(String(b.dataset.id))));
@@ -125,6 +213,14 @@
             } catch (error) {
                 content.innerHTML = `<div class="alert alert-error">Error: ${escapeHtml(error.message)}</div>`;
             }
+        }
+
+        function debounce(fn, ms) {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn(...args), ms);
+            };
         }
 
         async function moderateReport(id, action) {
@@ -163,8 +259,10 @@
             const body = document.getElementById('reportModalBody');
             if (!modal || !body || !report) return;
             const reviewText = report.reviewText || report.ReviewText || '';
+            const bookTitle = report.bookTitle || report.BookTitle || 'Book unavailable';
             body.innerHTML = `
                 <p><strong>Reason:</strong> ${escapeHtml(report.reason || report.Reason)}</p>
+                <p><strong>Book:</strong> ${escapeHtml(bookTitle)}</p>
                 <p><strong>Reporter:</strong> ${escapeHtml(report.reporterEmail || report.ReporterEmail)}</p>
                 <p><strong>Created:</strong> ${new Date(report.createdAt || report.CreatedAt).toLocaleString()}</p>
                 <p><strong>Review rating:</strong> ${report.reviewRating ?? report.ReviewRating ?? ''}/5</p>
