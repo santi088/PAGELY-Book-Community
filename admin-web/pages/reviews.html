@@ -10,11 +10,11 @@
     <div id="app"></div>
 
     <script type="module">
-        import { auth } from '../js/auth.js?v=3';
-        import { api } from '../js/api.js?v=3';
-        import { renderLayout, initLayout } from '../js/layout.js?v=3';
-        import { renderToolbar, renderPagination } from '../js/components.js?v=3';
-        import { createListStore, bindListToolbar } from '../js/list-utils.js?v=3';
+        import { auth } from '../js/auth.js?v=4';
+        import { api } from '../js/api.js?v=4';
+        import { renderLayout, initLayout } from '../js/layout.js?v=4';
+        import { renderToolbar, renderPagination } from '../js/components.js?v=4';
+        import { createListStore, bindListToolbar } from '../js/list-utils.js?v=4';
 
         const PAGE_SIZE = 20;
         let store = null;
@@ -162,8 +162,8 @@
             const flagged = reviews.filter(r => r.hidden || r.deleted).length;
             document.getElementById('stats').innerHTML = `
                 <div class="mini-stat"><div class="icon-tile">${ICON_CHAT}</div><div><strong>${totalCount}</strong><span>Total reviews</span></div></div>
-                <div class="mini-stat"><div class="icon-tile">${ICON_STAR}</div><div><strong>${reviews.length ? avg.toFixed(1) : '–'}</strong><span>Average rating · this page</span></div></div>
-                <div class="mini-stat"><div class="icon-tile">${ICON_EYE}</div><div><strong>${flagged}</strong><span>Hidden or removed · this page</span></div></div>`;
+                <div class="mini-stat"><div class="icon-tile">${ICON_STAR}</div><div><strong>${reviews.length ? avg.toFixed(1) : '–'}</strong><span>Average rating</span></div></div>
+                <div class="mini-stat"><div class="icon-tile">${ICON_EYE}</div><div><strong>${flagged}</strong><span>Hidden or removed</span></div></div>`;
         }
 
         function renderReviews(reviews, totalCount, pageNum) {
