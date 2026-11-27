@@ -147,6 +147,8 @@ public class AuthController : ControllerBase
         });
     }
 
+    [Authorize]
+    [HttpGet("me")]
     public async Task<IActionResult> GetCurrentUser()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

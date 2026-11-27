@@ -1,9 +1,30 @@
 import { auth } from './auth.js';
 
+function getUserEmail() {
+    if (!auth.currentUser) return null;
+    return auth.currentUser.email || auth.currentUser.Email || null;
+}
+
+function getUserDisplay() {
+    const email = getUserEmail();
+    return email ? `<div class="user-info">${escapeHtml(email)}</div>` : '<div class="user-info">Not logged in</div>';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text == null ? '' : String(text);
+    return div.innerHTML;
+}
+
+export function updateSidebarUserInfo() {
+    const el = document.querySelector('.sidebar-footer .user-info');
+    if (el) {
+        el.outerHTML = getUserDisplay();
+    }
+}
+
 export function renderLayout(pageTitle, pageDescription = '', eyebrow = '') {
-    const userInfo = auth.currentUser
-        ? `<div class="user-info">${auth.currentUser.email}</div>`
-        : '<div class="user-info">Not logged in</div>';
+    const userInfo = getUserDisplay();
 
     return `
         <div class="app-shell">
@@ -60,4 +81,7 @@ export function initLayout() {
             auth.logout();
         });
     }
+
+    // Update sidebar user info after layout init (in case auth.currentUser was just loaded)
+    updateSidebarUserInfo();
 }

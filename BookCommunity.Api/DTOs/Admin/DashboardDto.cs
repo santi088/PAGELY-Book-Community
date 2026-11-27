@@ -1,10 +1,14 @@
-using BookCommunity.Core.Entities;
 using System.ComponentModel.DataAnnotations;
 
 namespace BookCommunity.Api.DTOs.Admin;
 
 public class DashboardDto
 {
+    // Threshold constants (server-side)
+    public const int MinReviewsForHighestRated = 3;
+    public const int MinReportsForMostReportedBooks = 2;
+    public const int MinReportsForMostReportedReviewers = 2;
+
     // Context strip
     public int VisibleBooks { get; set; }
     public int HiddenBooks { get; set; }
@@ -19,6 +23,11 @@ public class DashboardDto
     public bool OldestPendingOver3Days => OldestPendingReportDays > 3;
     public int NewReportsLast7Days { get; set; }
     public int HiddenRemovedReviewsLast7Days { get; set; }
+
+    // Previous period comparisons (computed server-side)
+    public int PreviousPeriodPendingReports { get; set; }
+    public int PreviousPeriodNewReports { get; set; }
+    public int PreviousPeriodHiddenRemovedReviews { get; set; }
 
     // Trends
     public List<DailyTrend> NewReviewsPerDay { get; set; } = new();
@@ -57,6 +66,10 @@ public class ReportStatusBreakdown
     public int Pending { get; set; }
     public int Dismissed { get; set; }
     public int Resolved { get; set; }
+    public int Total => Pending + Dismissed + Resolved;
+    public double PendingPercent => Total > 0 ? Math.Round((double)Pending / Total * 100, 1) : 0;
+    public double DismissedPercent => Total > 0 ? Math.Round((double)Dismissed / Total * 100, 1) : 0;
+    public double ResolvedPercent => Total > 0 ? Math.Round((double)Resolved / Total * 100, 1) : 0;
 }
 
 public class GenreBookCount

@@ -539,8 +539,10 @@ var users = await _userManager.Users.ToListAsync();
     {
         if (days != 7 && days != 30) days = 7;
 
-        var cutoff = DateTime.UtcNow.AddDays(-days);
-        var cutoff7 = DateTime.UtcNow.AddDays(-7);
+        var now = DateTime.UtcNow.Date;
+        var cutoff = now.AddDays(-days + 1); // inclusive of today
+        var prevCutoff = now.AddDays(-days * 2 + 1).AddDays(days); // previous period same length
+        var prevEnd = now.AddDays(-days);
 
         // Context strip: visible books, hidden books, genres, active/suspended users, visible reviews
         var visibleBooks = await _context.Books.CountAsync(b => b.IsActive);
@@ -566,30 +568,60 @@ var users = await _userManager.Users.ToListAsync();
             ? (int)(DateTime.UtcNow - pendingReports.Min(r => r.CreatedAt)).TotalDays
             : 0;
 
-        // New reports in last 7 days
-        var newReportsLast7Days = await _context.Reports.CountAsync(r => r.CreatedAt >= cutoff7);
+        // Previous period pending reports
+        var previousPendingReports = await _context.Reports.CountAsync(r =>
+            r.Status == ReportStatus.Pending &&
+            r.CreatedAt >= prevCutoff &&
+            r.CreatedAt < prevEnd.AddDays(1));
 
-        // Hidden/removed reviews in last 7 days
-        var hiddenRemovedReviewsLast7Days = await _context.Reviews.CountAsync(r =>
-            r.CreatedAt >= cutoff7 && (r.IsHidden || r.IsDeleted));
+        // New reports in current period
+        var newReportsCurrentPeriod = await _context.Reports.CountAsync(r =>
+            r.CreatedAt >= cutoff);
 
-        // Trends: new reviews per day (last N days)
-        var newReviewsPerDay = await _context.Reviews
+        // New reports in previous period
+        var newReportsPreviousPeriod = await _context.Reviews.CountAsync(r =>
+            r.CreatedAt >= prevCutoff &&
+            r.CreatedAt < prevEnd.AddDays(1));
+        // Actually use Reports for consistency:
+        newReportsPreviousPeriod = await _context.Reports.CountAsync(r =>
+            r.CreatedAt >= prevCutoff &&
+            r.CreatedAt < prevEnd.AddDays(1));
+
+        // Hidden/removed reviews in current period
+        var hiddenRemovedCurrent = await _context.Reviews.CountAsync(r =>
+            r.CreatedAt >= cutoff && (r.IsHidden || r.IsDeleted));
+
+        // Hidden/removed reviews in previous period
+        var hiddenRemovedPrevious = await _context.Reviews.CountAsync(r =>
+            r.CreatedAt >= prevCutoff &&
+            r.CreatedAt < prevEnd.AddDays(1) &&
+            (r.IsHidden || r.IsDeleted));
+
+        // Trends: new reviews per day - zero-filled
+        var allDates = Enumerable.Range(0, days)
+            .Select(i => now.AddDays(-i).Date)
+            .OrderBy(d => d)
+            .ToList();
+
+        var reviewsByDate = await _context.Reviews
             .Where(r => r.CreatedAt >= cutoff)
             .Select(r => r.CreatedAt.Date)
             .ToListAsync();
-        var newReviewsPerDayGrouped = newReviewsPerDay
+        var reviewsGrouped = reviewsByDate
             .GroupBy(d => d)
-            .Select(g => new DailyTrendDto { Date = g.Key.ToString("yyyy-MM-dd"), Count = g.Count() })
-            .OrderBy(g => g.Date)
+            .ToDictionary(g => g.Key, g => g.Count());
+        var newReviewsPerDay = allDates.Select(d =>
+            new DailyTrendDto { Date = d.ToString("yyyy-MM-dd"), Count = reviewsGrouped.TryGetValue(d, out var c) ? c : 0 })
             .ToList();
 
-        // Trends: new users per day (ApplicationUser has CreatedAt)
-        var newUsersPerDayGrouped = allUsers
+        // Trends: new users per day - zero-filled
+        var usersByDate = allUsers
             .Where(u => u.CreatedAt >= cutoff)
-            .GroupBy(u => u.CreatedAt.Date)
-            .Select(g => new DailyTrendDto { Date = g.Key.ToString("yyyy-MM-dd"), Count = g.Count() })
-            .OrderBy(g => g.Date)
+            .Select(u => u.CreatedAt.Date)
+            .GroupBy(d => d)
+            .ToDictionary(g => g.Key, g => g.Count());
+        var newUsersPerDay = allDates.Select(d =>
+            new DailyTrendDto { Date = d.ToString("yyyy-MM-dd"), Count = usersByDate.TryGetValue(d, out var c) ? c : 0 })
             .ToList();
 
         // Trends: reports by reason (distinct reason values from DB)
@@ -611,8 +643,8 @@ var users = await _userManager.Users.ToListAsync();
             Resolved = statusBreakdown.FirstOrDefault(s => s.Status == ReportStatus.Resolved)?.Count ?? 0
         };
 
-        // Catalog insights: books per genre
-        var booksPerGenre = await _context.BookGenres
+        // Catalog insights: books per genre (top 8 + Other)
+        var allBooksPerGenre = await _context.BookGenres
             .Include(bg => bg.Genre)
             .Include(bg => bg.Book)
             .Where(bg => bg.Book.IsActive)
@@ -621,13 +653,19 @@ var users = await _userManager.Users.ToListAsync();
             .OrderByDescending(g => g.BookCount)
             .ToListAsync();
 
+        var top8Genres = allBooksPerGenre.Take(8).ToList();
+        var otherCount = allBooksPerGenre.Skip(8).Sum(g => g.BookCount);
+        var booksPerGenre = top8Genres.Select(g => new GenreBookCountDto { GenreName = g.GenreName, BookCount = g.BookCount }).ToList();
+        if (otherCount > 0)
+            booksPerGenre.Add(new GenreBookCountDto { GenreName = $"Other ({allBooksPerGenre.Count - 8} more genres)", BookCount = otherCount });
+
         // Genres with zero visible books
         var genresWithZeroVisibleBooks = await _context.Genres
             .Where(g => !g.BookGenres.Any(bg => bg.Book.IsActive))
             .Select(g => g.Name)
             .ToListAsync();
 
-        // Top 5 most reviewed visible books
+        // Top 5 most reviewed visible books (require at least 1 review)
         var top5MostReviewed = await _context.Books
             .Where(b => b.IsActive && b.ReviewCount > 0)
             .OrderByDescending(b => b.ReviewCount)
@@ -644,9 +682,9 @@ var users = await _userManager.Users.ToListAsync();
             })
             .ToListAsync();
 
-        // Top 5 highest rated visible books (require at least 1 review)
+        // Top 5 highest rated visible books (require at least MinReviewsForHighestRated reviews)
         var top5HighestRated = await _context.Books
-            .Where(b => b.IsActive && b.ReviewCount > 0)
+            .Where(b => b.IsActive && b.ReviewCount >= DashboardDto.MinReviewsForHighestRated)
             .OrderByDescending(b => b.AverageRating)
             .ThenByDescending(b => b.ReviewCount)
             .Take(5)
@@ -698,12 +736,13 @@ var users = await _userManager.Users.ToListAsync();
         var booksMissingCoverOrDescCount = await _context.Books
             .CountAsync(b => b.IsActive && (string.IsNullOrWhiteSpace(b.CoverImageUrl) || string.IsNullOrWhiteSpace(b.Description)));
 
-        // Moderation insights: top 5 most reported books
+        // Moderation insights: top 5 most reported books (min 2 reports)
         var top5MostReportedBooks = await _context.Reports
             .Include(r => r.Review)
             .ThenInclude(r => r.Book)
             .Where(r => r.Review.Book.IsActive)
             .GroupBy(r => new { r.Review.Book.Id, r.Review.Book.Title })
+            .Where(g => g.Count() >= DashboardDto.MinReportsForMostReportedBooks)
             .Select(g => new ReportedItemSummaryDto
             {
                 Id = g.Key.Id.ToString(),
@@ -714,10 +753,11 @@ var users = await _userManager.Users.ToListAsync();
             .Take(5)
             .ToListAsync();
 
-        // Top 5 most reported reviewers
+        // Top 5 most reported reviewers (min 2 reports)
         var top5MostReportedReviewers = await _context.Reports
             .Include(r => r.Reporter)
             .GroupBy(r => new { r.ReporterId, r.Reporter.Email })
+            .Where(g => g.Count() >= DashboardDto.MinReportsForMostReportedReviewers)
             .Select(g => new ReportedItemSummaryDto
             {
                 Id = g.Key.ReporterId,
@@ -738,10 +778,13 @@ var users = await _userManager.Users.ToListAsync();
             VisibleReviews = visibleReviews,
             PendingReports = pendingReportCount,
             OldestPendingReportDays = oldestPendingReportDays,
-            NewReportsLast7Days = newReportsLast7Days,
-            HiddenRemovedReviewsLast7Days = hiddenRemovedReviewsLast7Days,
-            NewReviewsPerDay = newReviewsPerDayGrouped.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
-            NewUsersPerDay = newUsersPerDayGrouped.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
+            NewReportsLast7Days = newReportsCurrentPeriod,
+            HiddenRemovedReviewsLast7Days = hiddenRemovedCurrent,
+            PreviousPeriodPendingReports = previousPendingReports,
+            PreviousPeriodNewReports = newReportsPreviousPeriod,
+            PreviousPeriodHiddenRemovedReviews = hiddenRemovedPrevious,
+            NewReviewsPerDay = newReviewsPerDay.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
+            NewUsersPerDay = newUsersPerDay.Select(d => new DailyTrend { Date = d.Date, Count = d.Count }).ToList(),
             ReportsByReason = reportsByReason.Select(r => new ReasonCount { Reason = r.Reason, Count = r.Count }).ToList(),
             StatusBreakdown = new ReportStatusBreakdown
             {

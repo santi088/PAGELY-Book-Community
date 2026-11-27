@@ -116,7 +116,7 @@ public class DashboardControllerTests : IClassFixture<WebApplicationFactory<Prog
         };
         await um.CreateAsync(user, "TestPass123!");
         await um.AddToRoleAsync(user, role);
-        return email;
+        return user.Id; // Return the GUID user ID, not email
     }
 
     private async Task<Guid> CreateBookAsync(string title, string author, bool isActive = true, double avgRating = 0, int reviewCount = 0, DateTime? createdAt = null, string? coverImageUrl = null, string? description = null)
@@ -359,5 +359,232 @@ public class DashboardControllerTests : IClassFixture<WebApplicationFactory<Prog
         // Act - invalid days should default to 7
         response = await GetWithToken(client, $"/api/admin/dashboard?days=999", token);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Dashboard_ReturnsZeroFilledDayRanges_7Days()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var token = GenerateToken("Admin");
+
+        // No data - should still return 7 days with 0 counts
+        var response = await GetWithToken(client, $"/api/admin/dashboard?days=7", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        var reviews = root.GetProperty("newReviewsPerDay");
+        Assert.Equal(7, reviews.GetArrayLength());
+        // All counts should be 0 with no data
+        foreach (var item in reviews.EnumerateArray())
+        {
+            Assert.Equal(0, item.GetProperty("count").GetInt32());
+        }
+
+        var users = root.GetProperty("newUsersPerDay");
+        Assert.Equal(7, users.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Dashboard_ReturnsZeroFilledDayRanges_30Days()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var token = GenerateToken("Admin");
+
+        var response = await GetWithToken(client, $"/api/admin/dashboard?days=30", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        var reviews = root.GetProperty("newReviewsPerDay");
+        Assert.Equal(30, reviews.GetArrayLength());
+        foreach (var item in reviews.EnumerateArray())
+        {
+            Assert.Equal(0, item.GetProperty("count").GetInt32());
+        }
+    }
+
+    [Fact]
+    public async Task Dashboard_HasPreviousPeriodComparisons()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var token = GenerateToken("Admin");
+
+        await CreateUserAsync("admin@test.com", "Admin");
+        await CreateUserAsync("user1@test.com", "User");
+
+        var book1 = await CreateBookAsync("Book 1", "Author A", isActive: true, reviewCount: 5);
+        var book2 = await CreateBookAsync("Book 2", "Author B", isActive: true, reviewCount: 2);
+
+        var userId = await CreateUserAsync("reviewer@test.com", "User");
+
+        // Create reviews in current period (within last 7 days)
+        await CreateReviewAsync(book1, userId, createdAt: DateTime.UtcNow.AddHours(-1));
+        await CreateReviewAsync(book1, userId, createdAt: DateTime.UtcNow.AddHours(-2));
+
+        // Create reports in current period
+        var reviewId = await CreateReviewAsync(book2, userId, createdAt: DateTime.UtcNow.AddHours(-3));
+        await CreateReportAsync(reviewId, userId, reason: "Spam", status: ReportStatus.Pending, createdAt: DateTime.UtcNow.AddHours(-4));
+
+        // Create reports in previous period (8-14 days ago)
+        var oldReviewId = await CreateReviewAsync(book1, userId, createdAt: DateTime.UtcNow.AddDays(-10));
+        await CreateReportAsync(oldReviewId, userId, reason: "Spam", status: ReportStatus.Pending, createdAt: DateTime.UtcNow.AddDays(-10));
+        await CreateReportAsync(oldReviewId, userId, reason: "Spam", status: ReportStatus.Resolved, createdAt: DateTime.UtcNow.AddDays(-9));
+
+        // Act
+        var response = await GetWithToken(client, $"/api/admin/dashboard?days=7", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        // Assert previous period comparisons exist
+        Assert.True(root.TryGetProperty("previousPeriodPendingReports", out var prevPending));
+        Assert.True(root.TryGetProperty("previousPeriodNewReports", out var prevNewReports));
+        Assert.True(root.TryGetProperty("previousPeriodHiddenRemovedReviews", out var prevHiddenRemoved));
+    }
+
+    [Fact]
+    public async Task Dashboard_HighestRated_RequiresMin3Reviews()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var token = GenerateToken("Admin");
+
+        // Book with only 2 reviews (below threshold of 3)
+        var bookLow = await CreateBookAsync("Low Review Count Book", "Author A", isActive: true, reviewCount: 2, avgRating: 5.0);
+        // Book with 3 reviews (meets threshold)
+        var bookHigh = await CreateBookAsync("High Review Count Book", "Author B", isActive: true, reviewCount: 5, avgRating: 4.0);
+
+        var userId = await CreateUserAsync("reviewer@test.com", "User");
+
+        // Act
+        var response = await GetWithToken(client, $"/api/admin/dashboard?days=7", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        var highestRated = root.GetProperty("top5HighestRated");
+        var titles = highestRated.EnumerateArray().Select(i => i.GetProperty("title").GetString()!).ToList();
+
+        // "Low Review Count Book" should NOT appear (only 2 reviews < 3 threshold)
+        Assert.DoesNotContain("Low Review Count Book", titles);
+        // "High Review Count Book" should appear (5 reviews >= 3 threshold)
+        Assert.Contains("High Review Count Book", titles);
+    }
+
+    [Fact]
+    public async Task Dashboard_MostReportedBooks_RequiresMin2Reports()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var token = GenerateToken("Admin");
+
+        var book1 = await CreateBookAsync("Reported Book 1", "Author A", isActive: true);
+        var book2 = await CreateBookAsync("Reported Book 2", "Author B", isActive: true);
+
+        var userId = await CreateUserAsync("reviewer@test.com", "User");
+
+        // Book 1: 2 reports (meets threshold)
+        var review1a = await CreateReviewAsync(book1, userId, createdAt: DateTime.UtcNow.AddHours(-1));
+        var review1b = await CreateReviewAsync(book1, userId, createdAt: DateTime.UtcNow.AddHours(-2));
+        await CreateReportAsync(review1a, userId, reason: "Spam", status: ReportStatus.Pending);
+        await CreateReportAsync(review1b, userId, reason: "Spam", status: ReportStatus.Pending);
+
+        // Book 2: 1 report (below threshold)
+        var review2a = await CreateReviewAsync(book2, userId, createdAt: DateTime.UtcNow.AddHours(-3));
+        await CreateReportAsync(review2a, userId, reason: "Spam", status: ReportStatus.Pending);
+
+        // Act
+        var response = await GetWithToken(client, $"/api/admin/dashboard?days=7", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        var mostReported = root.GetProperty("top5MostReportedBooks");
+        var titles = mostReported.EnumerateArray().Select(i => i.GetProperty("name").GetString()!).ToList();
+
+        Assert.Contains("Reported Book 1", titles);
+        Assert.DoesNotContain("Reported Book 2", titles);
+    }
+
+    [Fact]
+    public async Task Dashboard_MostReportedReviewers_RequiresMin2Reports()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var token = GenerateToken("Admin");
+
+        var book1 = await CreateBookAsync("Book 1", "Author A", isActive: true);
+
+        // Reviewer 1: 2 reports (meets threshold)
+        var reviewer1Email = "reviewer1@test.com";
+        var reviewer1Id = await CreateUserAsync(reviewer1Email, "User");
+        var review1a = await CreateReviewAsync(book1, reviewer1Id, createdAt: DateTime.UtcNow.AddHours(-1));
+        var review1b = await CreateReviewAsync(book1, reviewer1Id, createdAt: DateTime.UtcNow.AddHours(-2));
+        await CreateReportAsync(review1a, reviewer1Id, reason: "Spam", status: ReportStatus.Pending);
+        await CreateReportAsync(review1b, reviewer1Id, reason: "Spam", status: ReportStatus.Pending);
+
+        // Reviewer 2: 1 report (below threshold)
+        var reviewer2Email = "reviewer2@test.com";
+        var reviewer2Id = await CreateUserAsync(reviewer2Email, "User");
+        var review2a = await CreateReviewAsync(book1, reviewer2Id, createdAt: DateTime.UtcNow.AddHours(-3));
+        await CreateReportAsync(review2a, reviewer2Id, reason: "Spam", status: ReportStatus.Pending);
+
+        // Act
+        var response = await GetWithToken(client, $"/api/admin/dashboard?days=7", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        var mostReported = root.GetProperty("top5MostReportedReviewers");
+        var names = mostReported.EnumerateArray().Select(i => i.GetProperty("name").GetString()!).ToList();
+
+        Assert.Contains(reviewer1Email, names);
+        Assert.DoesNotContain(reviewer2Email, names);
+    }
+
+    [Fact]
+    public async Task Dashboard_StatusBreakdown_HasPercentages()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var token = GenerateToken("Admin");
+
+        await CreateUserAsync("admin@test.com", "Admin");
+        await CreateUserAsync("user1@test.com", "User");
+
+        var book1 = await CreateBookAsync("Book 1", "Author A", isActive: true);
+        var userId = await CreateUserAsync("reviewer@test.com", "User");
+
+        var reviewId = await CreateReviewAsync(book1, userId, createdAt: DateTime.UtcNow.AddHours(-1));
+        await CreateReportAsync(reviewId, userId, reason: "Spam", status: ReportStatus.Pending);
+        await CreateReportAsync(reviewId, userId, reason: "Spam", status: ReportStatus.Resolved);
+        await CreateReportAsync(reviewId, userId, reason: "Spam", status: ReportStatus.Dismissed);
+
+        // Act
+        var response = await GetWithToken(client, $"/api/admin/dashboard?days=7", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        var breakdown = root.GetProperty("statusBreakdown");
+        Assert.True(breakdown.TryGetProperty("pendingPercent", out var pendingPct));
+        Assert.True(breakdown.TryGetProperty("dismissedPercent", out var dismissedPct));
+        Assert.True(breakdown.TryGetProperty("resolvedPercent", out var resolvedPct));
+
+        // 3 reports total, 1 each = 33.3% each
+        Assert.Equal(33.3, pendingPct.GetDouble());
+        Assert.Equal(33.3, dismissedPct.GetDouble());
+        Assert.Equal(33.3, resolvedPct.GetDouble());
     }
 }

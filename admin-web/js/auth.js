@@ -10,12 +10,16 @@ export class AuthService {
             const response = await api.post('/api/auth/login', { email, password });
             api.setAuthToken(response.token);
             this.currentUser = {
-                email: response.email,
-                userId: response.userId,
-                roles: []
+                email: response.Email || response.email,
+                userId: response.UserId || response.userId,
+                roles: response.Roles || response.roles || []
             };
-            // Fetch user details with roles
-            await this.loadCurrentUser();
+            // Fetch user details with roles (non-fatal if endpoint missing)
+            try {
+                await this.loadCurrentUser();
+            } catch (e) {
+                console.warn('loadCurrentUser failed, using login response data:', e.message);
+            }
             return response;
         } catch (error) {
             throw error;
@@ -24,13 +28,16 @@ export class AuthService {
     
     async loadCurrentUser() {
         try {
-            const user = await api.get('/api/me');
-            this.currentUser = user;
-            return user;
+            const user = await api.get('/api/auth/me');
+            this.currentUser = {
+                email: user.email || user.Email,
+                userId: user.id || user.userId || user.Id,
+                roles: user.roles || user.Roles || []
+            };
+            return this.currentUser;
         } catch (error) {
-            console.error('Failed to load current user:', error);
+            console.warn('Failed to load current user:', error.message);
             this.currentUser = null;
-            api.setAuthToken(null);
             throw error;
         }
     }
