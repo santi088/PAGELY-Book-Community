@@ -61,125 +61,194 @@
             try {
                 content.innerHTML = '<div class="loading">Loading...</div>';
 
+                const s = store.get();
+                const hasRoleFilter = s.filters.role !== '';
+                const hasSuspendedFilter = s.filters.suspended !== '';
+
+                let userList = [];
+                let totalCount = 0;
+
+                if (hasRoleFilter || hasSuspendedFilter) {
+                    // Fetch ALL users without pagination params when filtering by role/suspended,
+                    // then filter and paginate client-side so results are reliable across all users.
+                    const params = new URLSearchParams();
+                    if (s.search) params.set('search', s.search);
+                    if (s.sort) params.set('sort', s.sort);
+                    const result = await api.get(`/api/admin/users?${params.toString()}`);
+                    userList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
+                    totalCount = userList.length;
+
+                    // Client-side filter by role
+                    if (hasRoleFilter) {
+                        userList = userList.filter(u => {
+                            const rs = Array.isArray(u.roles || u.Roles) ? (u.roles || u.Roles) : [];
+                            return rs.includes(s.filters.role);
+                        });
+                    }
+
+                    // Client-side filter by suspended
+                    if (hasSuspendedFilter) {
+                        const suspended = s.filters.suspended === 'true';
+                        userList = userList.filter(u => (u.isSuspended || u.IsSuspended) === suspended);
+                    }
+
+                    totalCount = userList.length;
+
+                    // Client-side pagination
+                    const page = Math.max(1, s.page);
+                    const pageSize = Math.max(1, s.pageSize);
+                    const totalPages = Math.ceil(totalCount / pageSize) || 1;
+                    const paged = userList.slice((page - 1) * pageSize, page * pageSize);
+                    userList = paged;
+
+                    renderUsersPage(content, paged, totalCount, page, pageSize, totalPages, s);
+                    wireUserActions(content);
+                    return;
+                }
+
+                // Normal path: server-side pagination
                 const params = store.toParams();
                 const result = await api.get(`/api/admin/users?${params.toString()}`);
-                const userList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
-                const totalCount = result.totalCount ?? userList.length;
+                userList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);
+                totalCount = result.totalCount ?? userList.length;
                 const totalPages = result.totalPages ?? 1;
                 const page = result.page ?? 1;
 
-                const s = store.get();
+                renderUsersPage(content, userList, totalCount, page, s.pageSize, totalPages, s);
+                wireUserActions(content);
+            } catch (error) {
+                content.innerHTML = `<div class="alert alert-error">Error: ${escapeHtml(error.message)}</div>`;
+            }
+        }
 
-                let html = `
-                    <div class="card">
-                        <div class="card-header">
-                            <h2>Users (${userList.length} of ${totalCount})</h2>
-                        </div>
-                        ${renderToolbar({ 
-                            searchPlaceholder: 'Search users by email or name...', 
-                            searchValue: s.search,
-                            filters: [
-                                { 
-                                    key: 'role', 
-                                    options: [
-                                        { value: '', label: 'All roles' },
-                                        ...roles.map(r => ({ value: r, label: r }))
-                                    ],
-                                    value: s.filters.role || ''
-                                },
-                                { 
-                                    key: 'suspended', 
-                                    options: [
-                                        { value: '', label: 'All' },
-                                        { value: 'true', label: 'Yes' },
-                                        { value: 'false', label: 'No' }
-                                    ],
-                                    value: s.filters.suspended || ''
-                                }
-                            ], 
-                            sortOptions: [
-                                { value: 'name', label: 'Name A-Z' },
-                                { value: 'namedesc', label: 'Name Z-A' },
-                                { value: 'email', label: 'Email A-Z' },
-                                { value: 'emaildesc', label: 'Email Z-A' },
-                                { value: 'newest', label: 'Newest' },
-                                { value: 'oldest', label: 'Oldest' }
-                            ],
-                            sortValue: s.sort
-                        })}
-                        <div class="table-wrap">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Email</th>
-                                        <th>Name</th>
-                                        <th>Roles</th>
-                                        <th>Suspended</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                `;
+        function renderUsersPage(content, userList, totalCount, page, pageSize, totalPages, s) {
+            const start = ((page - 1) * pageSize) + 1;
+            const end = Math.min(page * pageSize, totalCount);
 
-                if (userList.length === 0) {
-                    html += '<tr><td colspan="5" class="empty-state">No users match your filters</td></tr>';
-                } else {
-                    for (const user of userList) {
-                        const id = user.id || user.Id;
-                        const roles = Array.isArray(user.roles || user.Roles) ? (user.roles || user.Roles).join(', ') : '';
-                        const suspended = user.isSuspended || user.IsSuspended;
-                        const email = user.email || user.Email || '';
-                        const isSelf = (currentUserId && currentUserId === id) || (currentUserEmail && currentUserEmail === email.toLowerCase());
-                        const firstName = user.firstName || user.FirstName || '';
-                        const lastName = user.lastName || user.LastName || '';
-                        const name = (firstName + ' ' + lastName).trim() || '—';
-                        html += `
-                            <tr>
-                                <td>${escapeHtml(email)}</td>
-                                <td>${escapeHtml(name)}</td>
-                                <td>${escapeHtml(roles)}</td>
-                                <td>${suspended ? 'Yes' : 'No'}</td>
-                                <td>
-                                    ${isSelf ? '<span style="color: var(--text-light);">-</span>' : (suspended ? 
-                                        `<button class="btn btn-sm btn-primary" data-action="reactivateUser" data-id="${id}" data-email="${escapeHtml(email)}">Reactivate</button>` :
-                                        `<button class="btn btn-sm btn-danger" data-action="suspendUser" data-id="${id}" data-email="${escapeHtml(email)}">Suspend</button>`
-                                    )}
-                                </td>
-                            </tr>
-                        `;
-                    }
+            let html = `
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Users (${totalCount})</h2>
+                        ${totalCount > 0 ? `<span style="color: var(--text-light); font-size: 0.9rem; margin-left: 0.5rem;">Showing ${start}–${end}</span>` : ''}
+                    </div>
+                    ${renderToolbar({ 
+                        searchPlaceholder: 'Search users by email or name...', 
+                        searchValue: s.search,
+                        filters: [
+                            { 
+                                key: 'role', 
+                                options: [
+                                    { value: '', label: 'All roles' },
+                                    ...roles.map(r => ({ value: r, label: r }))
+                                ],
+                                value: s.filters.role || ''
+                            },
+                            { 
+                                key: 'suspended', 
+                                options: [
+                                    { value: '', label: 'All' },
+                                    { value: 'true', label: 'Suspended' },
+                                    { value: 'false', label: 'Active' }
+                                ],
+                                value: s.filters.suspended || ''
+                            }
+                        ], 
+                        sortOptions: [
+                            { value: 'name', label: 'Name A-Z' },
+                            { value: 'namedesc', label: 'Name Z-A' },
+                            { value: 'email', label: 'Email A-Z' },
+                            { value: 'emaildesc', label: 'Email Z-A' },
+                            { value: 'newest', label: 'Newest' },
+                            { value: 'oldest', label: 'Oldest' }
+                        ],
+                        sortValue: s.sort
+                    })}
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Name</th>
+                                    <th>Roles</th>
+                                    <th>Suspended</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+
+            if (userList.length === 0) {
+                html += '<tr><td colspan="5" class="empty-state">No users match your filters</td></tr>';
+            } else {
+                for (const user of userList) {
+                    const id = user.id || user.Id;
+                    const userRoles = Array.isArray(user.roles || user.Roles) ? (user.roles || user.Roles).join(', ') : '';
+                    const suspended = user.isSuspended || user.IsSuspended;
+                    const email = user.email || user.Email || '';
+                    const isSelf = (currentUserId && currentUserId === id) || (currentUserEmail && currentUserEmail === email.toLowerCase());
+                    const firstName = user.firstName || user.FirstName || '';
+                    const lastName = user.lastName || user.LastName || '';
+                    const name = (firstName + ' ' + lastName).trim() || '—';
+                    html += `
+                                <tr>
+                                    <td>${escapeHtml(email)}</td>
+                                    <td>${escapeHtml(name)}</td>
+                                    <td>${escapeHtml(userRoles)}</td>
+                                    <td>${suspended ? 'Yes' : 'No'}</td>
+                                    <td>
+                                        ${isSelf ? '<span style="color: var(--text-light);">-</span>' : (suspended ? 
+                                            `<button class="btn btn-sm btn-primary" data-action="reactivateUser" data-id="${id}" data-email="${escapeHtml(email)}">Reactivate</button>` :
+                                            `<button class="btn btn-sm btn-danger" data-action="suspendUser" data-id="${id}" data-email="${escapeHtml(email)}">Suspend</button>`
+                                        )}
+                                    </td>
+                                </tr>
+                    `;
                 }
+            }
 
-                html += `
+            html += `
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                    ${renderPagination(page, s.pageSize, totalCount)}
-                `;
+            `;
 
-                content.innerHTML = html;
-
-                // Wire toolbar events via shared module (debounce 300ms, state persists)
-                bindListToolbar('#pageContent', store, {
-                    onSearch: (v) => store.setSearch(v),
-                    onFilter: (key, v) => store.setFilter(key, v),
-                    onSort: (v) => store.setSort(v),
-                    onReset: () => store.reset(),
-                    onPrev: () => store.setPage(store.get().page - 1),
-                    onNext: () => store.setPage(store.get().page + 1)
-                });
-
-                // Action buttons
-                content.querySelectorAll('[data-action="suspendUser"]').forEach(b => {
-                    b.addEventListener('click', () => suspendUser(b.dataset.id, b.dataset.email));
-                });
-                content.querySelectorAll('[data-action="reactivateUser"]').forEach(b => {
-                    b.addEventListener('click', () => reactivateUser(b.dataset.id, b.dataset.email));
-                });
-            } catch (error) {
-                content.innerHTML = `<div class="alert alert-error">Error: ${escapeHtml(error.message)}</div>`;
+            if (totalPages > 1) {
+                html += `<div class="pagination" style="display:flex;gap:8px;align-items:center;margin-top:12px;justify-content:center;">
+                    <button class="btn btn-sm btn-secondary pg-prev" ${page<=1?'disabled':''}>Prev</button>
+                    <span style="font-weight:600">Page ${page} of ${totalPages}</span>
+                    <button class="btn btn-sm btn-secondary pg-next" ${page>=totalPages?'disabled':''}>Next</button>
+                </div>`;
             }
+
+            content.innerHTML = html;
+
+            // Wire toolbar events via shared module (debounce 300ms, state persists)
+            bindListToolbar('#pageContent', store, {
+                onSearch: (v) => store.setSearch(v),
+                onFilter: (key, v) => store.setFilter(key, v),
+                onSort: (v) => store.setSort(v),
+                onReset: () => store.reset(),
+                onPrev: () => store.setPage(store.get().page - 1),
+                onNext: () => store.setPage(store.get().page + 1)
+            });
+
+            // Wire pagination buttons
+            content.querySelectorAll('.pg-prev').forEach(b => b.addEventListener('click', () => {
+                store.setPage(store.get().page - 1);
+            }));
+            content.querySelectorAll('.pg-next').forEach(b => b.addEventListener('click', () => {
+                store.setPage(store.get().page + 1);
+            }));
+        }
+
+        function wireUserActions(content) {
+            content.querySelectorAll('[data-action="suspendUser"]').forEach(b => {
+                b.addEventListener('click', () => suspendUser(b.dataset.id, b.dataset.email));
+            });
+            content.querySelectorAll('[data-action="reactivateUser"]').forEach(b => {
+                b.addEventListener('click', () => reactivateUser(b.dataset.id, b.dataset.email));
+            });
         }
 
         async function suspendUser(id, email) {
