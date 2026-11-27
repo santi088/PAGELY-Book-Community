@@ -97,7 +97,7 @@
                             <p class="section-description">Pending reports: moderate today?</p>
                         </div>
                         <div class="grid">
-                            <div class="stat-card${pendingWarning}" data-nav="reports.html?status=pending" style="cursor:pointer;">
+                            <div class="stat-card card-depth${pendingWarning}" data-nav="reports.html?status=pending" style="cursor:pointer;">
                                 <h3>${d.pendingReports}</h3>
                                 <p>
                                     ${d.pendingReports === 0 ? 'All caught up' : `Pending reports &bull; oldest ${d.oldestPendingReportDays}d ago`}
