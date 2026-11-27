@@ -33,8 +33,13 @@
             currentUserEmail = (auth.currentUser?.email || auth.currentUser?.Email || '').toLowerCase();
 
             // Load roles for the role filter (real source from DB)
-            const rolesResp = await api.get('/api/admin/roles');
-            const roles = Array.isArray(rolesResp) ? rolesResp : [];
+            let roles = [];
+            try {
+                const rolesResp = await api.get('/api/admin/roles');
+                roles = Array.isArray(rolesResp) ? rolesResp : [];
+            } catch (e) {
+                console.error('Failed to load roles:', e);
+            }
 
             store = createListStore({
                 search: '',
@@ -53,9 +58,9 @@
 
         async function loadUsers() {
             const content = document.getElementById('pageContent');
-            content.innerHTML = '<div class="loading">Loading...</div>';
-
             try {
+                content.innerHTML = '<div class="loading">Loading...</div>';
+
                 const params = store.toParams();
                 const result = await api.get(`/api/admin/users?${params.toString()}`);
                 const userList = Array.isArray(result.items) ? result.items : (Array.isArray(result) ? result : []);

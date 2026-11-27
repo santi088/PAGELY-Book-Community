@@ -118,7 +118,18 @@
                             <button class="btn btn-primary" data-action="showGenreForm">Add Genre</button>
                         </div>
 
-                        <div id="genreToolbar"></div>
+                        <div id="genreToolbar">
+                            ${renderToolbar({
+                                searchPlaceholder: 'Search genres by name or description...',
+                                searchValue: s.search,
+                                filters: [],
+                                sortOptions: [
+                                    { value: 'name', label: 'Name A-Z' },
+                                    { value: 'namedesc', label: 'Name Z-A' }
+                                ],
+                                sortValue: s.sort
+                            })}
+                        </div>
 
                         <div id="genreModal" class="modal">
                             <div class="modal-content">
