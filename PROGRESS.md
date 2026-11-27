@@ -10,45 +10,50 @@
 ## Shared components
 - admin-web/js/components.js: renderToolbar(config), renderPagination(page,pageSize,total).
 - admin-web/js/list-utils.js: debounce, createListStore(initial), bindListToolbar(containerEl, store, handlers), syncToolbarUI(containerEl, store).
+- admin-web/js/layout.js: renderLayout(), initLayout(), updateSidebarUserInfo(), escapeHtml().
 
 ## Per tab status (ALL COMPLETE)
-- Reports: DONE - migrated to shared list-utils module, toolbar (search debounced, reason filter, sort: recent/oldest/reason/reviewer/book, reset), pagination, View modal shows Book title, filter state persists across modal open/close.
-- Reviews: DONE - added sort (newest/oldest/highest/lowest/mostliked/book/reader), Reset button, status pills kept as custom HTML, rating filter in shared toolbar, state persists across actions.
-- Users: DONE - search by email/name (debounced), role filter (from /api/admin/roles), suspended filter, sort (name/email/newest, asc/desc), pagination (page size 20), header count "X of Y", suspend/reactivate with self-protection.
-- Books: DONE - genre filter (from /api/genres), visibility filter (All/Visible/Hidden), sort (newest/oldest/title/author/rating/reviewcount, asc/desc), reset, pagination (page size 24), Edit/Remove preserved, Open Library tab unchanged.
-- Genres: DONE - search by name/description, sort (name A-Z/Z-A), pagination (page size 20), header count "X of Y", Add/Edit/Delete preserved.
-- Dashboard: DONE - replaced with decision-oriented dashboard using GET /api/admin/dashboard endpoint.
-  - A. Needs attention: pending reports + oldest pending age (warning >3 days), new reports 7d, hidden/removed reviews 7d.
-  - B. Trends: 7/30-day toggle, new reviews/users per day (sparkline), reports by reason, resolved/dismissed/pending breakdown.
-  - C. Catalog insights: books per genre (bar chart), zero-visible-book genres, top 5 most reviewed, top 5 highest rated, top 5 most saved, missing cover/description.
-  - D. Moderation insights: top 5 most reported books, top 5 most reported reviewers.
+- Reports: DONE - shared module, toolbar (search debounced, reason filter incl. Harassment/Others, sort, reset), pagination, reads ?status=?sort= from URL.
+- Reviews: DONE - shared module, sort, Reset, status pills, rating filter, reads ?status= from URL.
+- Users: DONE - search, role filter (/api/admin/roles), suspended filter, sort, pagination (20), header count, suspend/reactivate with self-protection.
+- Books: DONE - genre filter, visibility filter, sort, reset, pagination (24), missingCoverOrDesc filter (reads ?filter=missingCoverOrDesc from URL), Edit/Remove preserved, Open Library tab unchanged.
+- Genres: DONE - search, sort, pagination (20), header count, Add/Edit/Delete preserved.
+- Dashboard: DONE - decision-oriented dashboard via GET /api/admin/dashboard endpoint.
+  - A. Needs attention: pending reports + oldest age (warning >3 days), new reports 7d, hidden/removed reviews 7d, previous-period comparisons, cards are clickable links.
+  - B. Trends: segmented period toggle (7 days | 30 days) in header, sparklines, reports by reason, resolution with percentages.
+  - C. Catalog insights: books per genre (top 8 + Other row), zero-visible genres (chips link to Books), top 5 most reviewed/highest rated (min 3 reviews)/most saved, missing cover/description (chips + View all link).
+  - D. Moderation insights: top 5 most reported books/reviewers (min 2 reports).
   - E. Context strip: visible/hidden books, genres, active/suspended users, visible reviews.
-  - Empty states, loading state, error isolation, captions under each section, admin-only guard.
+  - Empty states, loading state, error isolation, section captions, pluralization, Updated time + Refresh button, admin-only guard.
 
 ## API changes
-- /api/admin/dashboard: NEW endpoint returning all dashboard data in single response with aggregate queries (COUNT/GROUP BY). Supports ?days=7|30.
-- /api/admin/users: added search, role, suspended, sort, page, pageSize params; returns PagedResult<UserDto> (backward compatible).
+- /api/admin/dashboard: NEW endpoint returning all dashboard data in single response with aggregate queries (COUNT/GROUP BY). Supports ?days=7|30. Zero-filled day ranges, thresholds (named constants), previous-period comparisons, percentages.
+- /api/admin/users: added search, role, suspended, sort, page, pageSize params; returns PagedResult<UserDto>.
 - /api/admin/roles: NEW endpoint returning distinct role names from DB.
-- /api/books: added isActive filter param, added reviewcount sort option. Removed hardcoded IsActive=true filter.
+- /api/auth/me: NEW [HttpGet("me")] on GetCurrentUser so frontend can load user profile.
+- /api/books: added isActive filter param, missingCoverOrDesc filter param, reviewcount sort option. Removed hardcoded IsActive=true filter.
 - /api/genres: added search, sort, page, pageSize params; returns PagedResult<GenreDto> when paging params present.
 - /api/admin/reviews: added search, status, rating, sort params.
 
 ## Frontend changes
-- admin-web/js/list-utils.js: NEW shared module (debounce, createListStore, bindListToolbar, syncToolbarUI).
-- admin-web/pages/dashboard.html: REPLACED with decision-oriented dashboard (Needs attention, Trends, Catalog insights, Moderation insights, Context strip).
-- admin-web/pages/reports.html: migrated to shared module, added Harassment and Others reason filter options.
-- admin-web/pages/users.html: rewritten with shared module.
-- admin-web/pages/books.html: catalog tab uses shared module; Open Library tab unchanged.
-- admin-web/pages/genres.html: rewritten with shared module.
-- admin-web/pages/reviews.html: rewritten with shared module, status pills kept as custom HTML.
+- admin-web/js/list-utils.js: NEW shared module.
+- admin-web/js/layout.js: renderLayout, initLayout, updateSidebarUserInfo, escapeHtml. Handles email/Email casing, updates sidebar dynamically.
+- admin-web/js/auth.js: Fixed PascalCase/camelCase property handling in login/loadCurrentUser; loadCurrentUser non-fatal on failure.
+- admin-web/pages/dashboard.html: REPLACED with polished dashboard (all widgets, period toggle moved to Trends, pluralization, clickable cards, chips, percentages, refresh).
+- admin-web/pages/reports.html: shared module, Harassment/Others reasons, reads ?status=?sort= from URL.
+- admin-web/pages/users.html: shared module.
+- admin-web/pages/books.html: shared module, missingCoverOrDesc filter, reads ?filter=missingCoverOrDesc from URL.
+- admin-web/pages/genres.html: shared module.
+- admin-web/pages/reviews.html: shared module, reads ?status= from URL.
+- All pages: cache-busting ?v=6 on ES module imports.
 
 ## Tests
-- BookCommunity.Tests/AdminListFilterTests.cs: NEW - 9 tests covering Users (search/role/suspended/roles), Books (isActive/reviewcount sort), Genres (search/sort/paging), Reviews (status/rating/sort).
-- BookCommunity.Tests/DashboardControllerTests.cs: NEW - 4 tests covering dashboard counts, empty database, days parameter, non-admin 403. All use in-memory database.
-- All 42 tests pass (29 original + 9 list filter + 4 dashboard).
+- BookCommunity.Tests/AdminListFilterTests.cs: NEW - 9 tests.
+- BookCommunity.Tests/DashboardControllerTests.cs: NEW - 11 tests (counts, empty DB, days param, non-admin 403, zero-filled ranges, thresholds, previous-period, percentages).
+- All 49 tests pass (29 original + 9 list filter + 11 dashboard). In-memory database only.
 
 ## Files served (admin-web static server on :8080)
-- admin-web/pages/*.html - served directly (no build step)
+- admin-web/pages/*.html - served directly
 - admin-web/js/*.js - ES modules loaded by HTML pages
 - admin-web/css/styles.css - stylesheet
 - API runs on :5242 (CORS allows localhost:8080)
@@ -60,8 +65,8 @@ Tests: dotnet test BookCommunity.Tests/BookCommunity.Tests.csproj
 
 ## IMPORTANT: Hard-refresh (Ctrl+Shift+R) before testing UI changes - ES modules may be cached.
 
-## Widgets skipped (data field missing)
-- None - all entity fields needed exist (ApplicationUser.CreatedAt, Report.ModeratedAt, Report.Reason as string).
+## Widgets skipped
+- None - all entity fields needed exist.
 
 ## NOT done (headless browser test)
-- No Playwright/jsdom in project; not added per "no heavy new dependencies" rule. Manual verification recommended.
+- No Playwright/jsdom in project per "no heavy new dependencies" rule. Manual verification recommended.
